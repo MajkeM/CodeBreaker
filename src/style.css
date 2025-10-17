@@ -28,6 +28,9 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #181a20;
+  color: #f3f3f3;
 }
 
 h1 {
@@ -53,6 +56,11 @@ h1 {
 }
 .logo.vanilla:hover {
   filter: drop-shadow(0 0 2em #f7df1eaa);
+    background: #3a3f4b;
+    color: #f3f3f3;
+  }
+  button:hover {
+    background: #4e5370;
 }
 
 .card {
@@ -77,6 +85,14 @@ button {
 button:hover {
   border-color: #646cff;
 }
+  #scene {
+    max-width: 600px;
+    margin: 40px auto;
+    background: #23252b;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px #0006;
+    padding: 32px;
+  }
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
