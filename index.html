@@ -1,13 +1,24 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>codebreaker</title>
-  </head>
-  <body>
-  <div id="scene"></div>
-  <script type="module" src="/src/game.js"></script>
-  </body>
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>CodeBreaker</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- Herní plátno je generováno skriptem -->
+
+  <!-- Načtení externí knihovny Kaboom.js -->
+  <script src="https://unpkg.com/kaboom@3000.0.1/dist/kaboom.js"></script>
+
+  <!-- Naše vlastní skripty -->
+  <script src="js/main.js"></script>
+  <script src="js/scenes/scene_intro.js"></script>
+  <script src="js/scenes/scene_server.js"></script>
+  <script src="js/scenes/scene_classroom.js"></script>
+  <script src="js/scenes/scene_minigame.js"></script>
+</body>
+
 </html>
