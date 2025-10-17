@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Doma - Klasické ráno IT studenta</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Scéna s tvými obrázky -->
+        <!-- Scéna s tvými obrázky -->
+<div class="scene-container" style="background-image: url('png/room.png');">
+    <!-- Tvoje hlavní postava -->
+    <img src="png/main-char.png" alt="Hlavní postava" id="main-character">
+    
+    <!-- Hotspot pro notebook (mac.png) -->
+    <div id="notebook" class="hotspot" style="left: 60%; top: 45%; width: 10%; height: 22%;">
+        <img src="png/mac.png" alt="Notebook">
+    </div>
+    
+    <!-- Hotspot pro batoh (backpack.png) -->
+    <div id="backpack" class="hotspot" style="right: 50%; top: 70%; width: 10%; height: 25%;">
+        <img src="png/backpack.png" alt="Batoh">
+    </div>
+</div>  
+        <!-- UI Prvky -->
+        <div id="ui-top-left" class="ui-element"><button class="ui-btn" title="Menu">☰ <span id="menu-text">MENU</span></button></div>
+        <div id="ui-bottom-left" class="ui-element"><div id="inventory-items"></div></div>
+        <div id="ui-bottom-right" class="ui-element">
+            <img id="map-icon" src="https://img.icons8.com/wired/64/e0e0e0/compass.png" alt="Mapa">
+        </div>
+        <!-- Dialogový box -->
+        <div id="dialogue-box"><span id="message-text"></span></div>
+
+        <!-- Modální okno pro výběr příběhu (skryté) -->
+        <div id="story-modal-overlay" class="modal-overlay hidden">
+            <div class="story-modal">
+                <h2>Co je dnes v plánu?</h2>
+                <div id="story-choices">
+                    <!-- Volby se vygenerují pomocí JS -->
+                </div>
+                <button id="close-modal" class="btn" style="margin-top: 20px;">Zavřít</button>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

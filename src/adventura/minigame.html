@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Boj s virem</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="scene-container" style="background-color: #111;"></div>
+        
+        <div class="overlay-content minigame-wrapper">
+            <h2 id="minigame-message">Probíhá dekontaminace systému...</h2>
+
+            <div id="clicker-area"></div>
+
+            <div id="code-puzzle-area" class="hidden">
+                <h3>Oprav kód přetažením řádků:</h3>
+                <ul id="puzzle-lines">
+                    <li draggable="true" data-order="3">console.log("Systém opraven!");</li>
+                    <li draggable="true" data-order="1">function opravSystem() {</li>
+                    <li draggable="true" data-order="4">}</li>
+                    <li draggable="true" data-order="2">  const status = "OK";</li>
+                </ul>
+                <button id="solve-puzzle" class="btn">Ověřit kód</button>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

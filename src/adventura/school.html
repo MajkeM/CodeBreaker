@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Škola</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Scéna -->
+        <div class="scene-container" style="background-image: url('https://picsum.photos/id/24/1280/720');">
+            <!-- Učitel se správnou cestou -->
+            <img src="png/Teacher.png" alt="Učitel" style="position: absolute; height: 90%; bottom: 0; right: 5%; z-index: 1;">
+            <div id="virus-overlay" class="hidden"></div>
+        </div>
+        
+        <!-- UI Prvky -->
+        <div id="ui-top-left" class="ui-element"><button class="ui-btn" title="Menu">☰ <span id="menu-text">MENU</span></button></div>
+        <div id="ui-bottom-left" class="ui-element"><div id="inventory-items"></div></div>
+        <div id="dialogue-box"><span id="message-text"></span></div>
+        
+        <!-- Tlačítko pro přechod na minihru (objeví se) -->
+        <div class="overlay-content">
+             <a href="minigame.html" id="face-virus" class="btn hidden">Postavit se viru!</a>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
