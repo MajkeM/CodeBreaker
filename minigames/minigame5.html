@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Password Auditor - Codebreaker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+  :root {
+    --color-bg: #1e1e1e; --color-panel: #2d2d30; --color-text: #d4d4d4;
+    --color-blue: #569cd6; --color-green: #608b4e; --color-yellow: #dcdcaa;
+    --color-red: #f44747; --color-purple: #c586c0; --color-grey: #808080;
+    --color-orange: #ce9178;
+  }
+
+  body {
+    background-color: var(--color-bg); color: var(--color-text);
+    font-family: 'Fira Code', monospace; display: flex;
+    justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;
+    box-sizing: border-box;
+  }
+
+  #gameContainer {
+    background-color: var(--color-panel); padding: 30px; border-radius: 8px;
+    border: 1px solid #444; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    width: 900px; max-width: 100%;
+  }
+  
+  h1 { color: var(--color-blue); text-align: center; margin: 0 0 25px 0; }
+
+  .main-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+      margin-bottom: 25px;
+  }
+  
+  .info-panel {
+      background-color: #252526; padding: 20px; border-radius: 6px;
+      border-left: 4px solid var(--color-purple);
+  }
+  .info-panel h3 { margin: 0 0 15px 0; color: var(--color-purple); }
+  .info-panel ul { list-style: none; padding: 0; margin: 0; }
+  .info-panel li { margin-bottom: 10px; }
+  .info-panel li strong { color: var(--color-orange); margin-right: 10px; }
+  
+  #cluesPanel ul { counter-reset: clue-counter; }
+  #cluesPanel li {
+      opacity: 0; transform: translateY(10px);
+      transition: opacity 0.5s, transform 0.5s;
+      padding-left: 25px; position: relative;
+  }
+  #cluesPanel li.visible { opacity: 1; transform: translateY(0); }
+  #cluesPanel li::before {
+      counter-increment: clue-counter;
+      content: counter(clue-counter) ".";
+      position: absolute; left: 0;
+      color: var(--color-blue); font-weight: bold;
+  }
+
+  #terminal {
+      grid-column: 1 / -1;
+      background-color: #191919; padding: 25px; border-radius: 6px;
+      text-align: center;
+  }
+  #terminal p { color: var(--color-grey); margin: 0 0 10px 0; }
+  #terminal .hash-display {
+      color: var(--color-yellow); word-break: break-all;
+      background-color: #252526; padding: 10px; border-radius: 4px;
+      margin-bottom: 20px; font-size: 0.9em;
+  }
+  
+  #passwordInput {
+      width: 80%; padding: 15px; font-size: 1.2em;
+      background-color: #333; border: 1px solid var(--color-grey);
+      color: var(--color-text); border-radius: 4px; text-align: center;
+      font-family: 'Fira Code', monospace; margin-bottom: 20px;
+  }
+  #passwordInput:focus { border-color: var(--color-blue); outline: none; }
+  
+  .button-group { display: flex; justify-content: center; gap: 15px; }
+
+  .game-button {
+      padding: 10px 20px; font-size: 1em; border-radius: 5px;
+      border: 2px solid; cursor: pointer; background: transparent;
+      font-family: 'Fira Code', monospace; font-weight: bold;
+      transition: all 0.2s;
+  }
+  .game-button:hover:not(:disabled) { transform: translateY(-2px); }
+  .game-button:disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  #checkBtn { border-color: var(--color-green); color: var(--color-green); }
+  #clueBtn { border-color: var(--color-blue); color: var(--color-blue); }
+
+  #feedbackPanel {
+      margin-top: 20px; padding: 15px; border-radius: 6px;
+      min-height: 70px; text-align: left;
+      opacity: 0; transition: opacity 0.5s;
+  }
+  #feedbackPanel.visible { opacity: 1; }
+  #feedbackPanel.correct { background-color: rgba(96, 139, 78, 0.2); border-left: 4px solid var(--color-green); }
+  #feedbackPanel.incorrect { background-color: rgba(244, 71, 71, 0.2); border-left: 4px solid var(--color-red); }
+  #feedbackPanel h4 { margin: 0 0 10px 0; }
+  #feedbackPanel p { margin: 0; }
+  
+  #statsBar {
+      grid-column: 1 / -1; text-align: center; color: var(--color-grey);
+      margin-top: 15px;
+  }
+
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <h1>Password Auditor - Codebreaker</h1>
+
+    <div class="main-layout">
+        <div id="profilePanel" class="info-panel">
+            <h3>Profil Uživatele</h3>
+            <ul>
+                <li><strong>Jméno:</strong> <span id="userName"></span></li>
+                <li><strong>Rok narození:</strong> <span id="userBirthYear"></span></li>
+                <li><strong>Oblíbený tým:</strong> <span id="userTeam"></span></li>
+                <li><strong>Mazlíček:</strong> <span id="userPet"></span></li>
+            </ul>
+        </div>
+        <div id="cluesPanel" class="info-panel">
+            <h3>Indicie</h3>
+            <ul id="cluesList"></ul>
+        </div>
+
+        <div id="terminal">
+            <p>Hash hesla:</p>
+            <div id="hashDisplay" class="hash-display"></div>
+            <p>Délka: <span id="passwordLength"></span> znaků</p>
+
+            <input type="text" id="passwordInput" placeholder="Zadejte heslo...">
+            
+            <div class="button-group">
+                <button id="clueBtn" class="game-button">Další indicie</button>
+                <button id="checkBtn" class="game-button">Ověřit Heslo</button>
+            </div>
+
+            <div id="feedbackPanel">
+                <h4 id="feedbackTitle"></h4>
+                <p id="feedbackText"></p>
+            </div>
+        </div>
+        
+        <div id="statsBar">
+            Úroveň: <span id="levelDisplay">1</span> | Pokusy: <span id="attemptsDisplay">3</span>
+        </div>
+    </div>
+</div>
+
+<script>
+// === DOM Elements ===
+const userNameEl = document.getElementById('userName');
+const userBirthYearEl = document.getElementById('userBirthYear');
+const userTeamEl = document.getElementById('userTeam');
+const userPetEl = document.getElementById('userPet');
+const cluesListEl = document.getElementById('cluesList');
+const hashDisplayEl = document.getElementById('hashDisplay');
+const passwordLengthEl = document.getElementById('passwordLength');
+const passwordInput = document.getElementById('passwordInput');
+const clueBtn = document.getElementById('clueBtn');
+const checkBtn = document.getElementById('checkBtn');
+const feedbackPanel = document.getElementById('feedbackPanel');
+const feedbackTitle = document.getElementById('feedbackTitle');
+const feedbackText = document.getElementById('feedbackText');
+const levelDisplay = document.getElementById('levelDisplay');
+const attemptsDisplay = document.getElementById('attemptsDisplay');
+
+// === Game Data: Levels ===
+const LEVELS = [
+    {
+        level: 1,
+        user: { name: 'Jan Novák', birthYear: '1990', team: 'Sparta', pet: 'Pes Alík' },
+        password: 'Alik1990',
+        clues: [
+            'Uživatel použil jméno svého mazlíčka.',
+            'Za jméno přidal rok svého narození.'
+        ],
+        lesson: 'Používání osobních informací (jména, data) v hesle je velmi nebezpečné. Jsou to první věci, které útočník vyzkouší.'
+    },
+    {
+        level: 2,
+        user: { name: 'Petra Dvořáková', birthYear: '1985', team: 'Slavia', pet: 'Kočka Micka' },
+        password: 'micka',
+        clues: [
+            'Heslo je napsáno malými písmeny.',
+            'Je to jméno jejího zvířecího miláčka.'
+        ],
+        lesson: 'Krátká hesla a hesla bez velkých písmen, čísel a symbolů jsou extrémně zranitelná vůči slovníkovým útokům.'
+    },
+    {
+        level: 3,
+        user: { name: 'Tomáš Černý', birthYear: '2001', team: 'Bohemians', pet: 'Had Zmije' },
+        password: 'h3sl0',
+        clues: [
+            'Uživatel si myslel, že je chytrý, když nahradil písmena čísly.',
+            'Heslo je běžné české slovo.'
+        ],
+        lesson: 'Nahrazování písmen podobnými čísly (tzv. "leetspeak", např. e->3, o->0) je běžná technika a hackerské nástroje s ní počítají. Nezvyšuje bezpečnost.'
+    },
+    {
+        level: 4,
+        user: { name: 'Eva Modrá', birthYear: '1995', team: 'Plzeň', pet: 'Papoušek Riko' },
+        password: 'password123',
+        clues: [
+            'Heslo začíná jedním z nejčastěji používaných hesel na světě.',
+            'Na konec jsou přidána tři po sobě jdoucí čísla.'
+        ],
+        lesson: 'Používání slov jako "password", "heslo" nebo sekvencí "123" je jednou z největších bezpečnostních chyb.'
+    },
+    {
+        level: 5,
+        user: { name: 'Martin Bílý', birthYear: '1988', team: 'Ostrava', pet: 'Kůň Blesk' },
+        password: 'Blesk!',
+        clues: [
+            'Heslo začíná velkým písmenem.',
+            'Je to jméno jeho koně.',
+            'Na konci je jeden ze čtyř nejběžnějších speciálních znaků.'
+        ],
+        lesson: 'I když heslo obsahuje velká písmena a symbol, pokud je založeno na snadno uhodnutelném slově, je stále považováno za slabé.'
+    }
+];
+
+// === Game State ===
+let currentLevel = 0;
+let attemptsLeft = 3;
+let revealedClues = 0;
+
+// === Game Functions ===
+function init() {
+    loadLevel(currentLevel);
+}
+
+function loadLevel(levelIndex) {
+    if (levelIndex >= LEVELS.length) {
+        showFinalWin();
+        return;
+    }
+    
+    const levelData = LEVELS[levelIndex];
+    
+    // Reset state for new level
+    attemptsLeft = 3;
+    revealedClues = 0;
+    passwordInput.value = '';
+    
+    // Display user data
+    userNameEl.textContent = levelData.user.name;
+    userBirthYearEl.textContent = levelData.user.birthYear;
+    userTeamEl.textContent = levelData.user.team;
+    userPetEl.textContent = levelData.user.pet;
+    
+    // Display password info
+    hashDisplayEl.textContent = generateFakeHash(levelData.password);
+    passwordLengthEl.textContent = levelData.password.length;
+    
+    // Prepare clues
+    cluesListEl.innerHTML = '';
+    levelData.clues.forEach(clueText => {
+        const li = document.createElement('li');
+        li.textContent = clueText;
+        cluesListEl.appendChild(li);
+    });
+
+    // Reset UI
+    feedbackPanel.classList.remove('visible', 'correct', 'incorrect');
+    passwordInput.disabled = false;
+    checkBtn.disabled = false;
+    clueBtn.disabled = false;
+    
+    updateStats();
+    revealClue(); // Reveal the first clue automatically
+}
+
+function revealClue() {
+    const levelData = LEVELS[currentLevel];
+    if (revealedClues < levelData.clues.length) {
+        cluesListEl.children[revealedClues].classList.add('visible');
+        revealedClues++;
+    }
+    // Disable button if all clues are revealed
+    if (revealedClues >= levelData.clues.length) {
+        clueBtn.disabled = true;
+    }
+}
+
+function checkPassword() {
+    const levelData = LEVELS[currentLevel];
+    const userInput = passwordInput.value;
+
+    if (userInput === levelData.password) {
+        // CORRECT
+        showFeedback(true, 'Heslo Prolomeno!', levelData.lesson);
+        passwordInput.disabled = true;
+        checkBtn.disabled = true;
+        clueBtn.disabled = true;
+        
+        setTimeout(() => {
+            currentLevel++;
+            loadLevel(currentLevel);
+        }, 5000); // 5 seconds to read the lesson
+
+    } else {
+        // INCORRECT
+        attemptsLeft--;
+        updateStats();
+        if (attemptsLeft <= 0) {
+            showFeedback(false, 'Audit Selhal', `Správné heslo bylo: "${levelData.password}". ${levelData.lesson}`);
+            passwordInput.disabled = true;
+            checkBtn.disabled = true;
+            clueBtn.disabled = true;
+            // Game over logic could go here, or just move to next level after a delay
+            setTimeout(() => {
+                currentLevel++;
+                loadLevel(currentLevel);
+            }, 8000);
+        } else {
+            showFeedback(false, 'Nesprávné Heslo', 'Zkuste to znovu. Věnujte pozornost indiciím.');
+        }
+    }
+}
+
+function showFeedback(isCorrect, title, text) {
+    feedbackPanel.classList.remove('correct', 'incorrect');
+    feedbackPanel.classList.add(isCorrect ? 'correct' : 'incorrect');
+    
+    feedbackTitle.textContent = title;
+    feedbackText.textContent = text;
+    
+    feedbackPanel.classList.add('visible');
+}
+
+function showFinalWin() {
+    // Clear the board and show a final message
+    document.querySelector('.main-layout').innerHTML = 
+        `<div style="grid-column: 1 / -1; text-align: center;">
+            <h2>Gratulujeme!</h2>
+            <p>Úspěšně jste dokončili audit všech hesel a prokázali jste své schopnosti.</p>
+            <p>Pamatujte: Vždy používejte silná, unikátní hesla a vícefaktorové ověřování!</p>
+         </div>`;
+}
+
+
+function updateStats() {
+    levelDisplay.textContent = currentLevel + 1;
+    attemptsDisplay.textContent = attemptsLeft;
+}
+
+function generateFakeHash(password) {
+    // Simple non-crypto hash for display purposes only
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) {
+        const char = password.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0') + (Math.abs(hash * 31) >>> 0).toString(16).padStart(8, '0');
+}
+
+// === Event Listeners ===
+clueBtn.addEventListener('click', revealClue);
+checkBtn.addEventListener('click', checkPassword);
+passwordInput.addEventListener('keyup', (event) => {
+    if (event.key === 'Enter') {
+        checkPassword();
+    }
+});
+
+
+// === Initial Call ===
+init();
+
+</script>
+</body>
+</html>

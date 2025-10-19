@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pattern Match – Získávání hesla</title>
+<style>
+  :root{--bg:#0f0f11;--panel:#151515;--accent:#00d166;--hint:#ffd24d;--fragment:#d10000;--revealed-safe:#333;--deactivated:#00a352;}
+  body{background:var(--bg);color:#eaeaea;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0}
+  .panel{background:var(--panel);padding:18px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.6);min-width:400px}
+  h2{margin:0 0 8px 0}
+  p{margin:0 0 12px 0;font-size:14px}
+  #controls{display:flex;gap:8px;margin-bottom:12px; align-items: center;}
+  button{background:var(--accent);border:none;color:#03120a;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:700;transition:background-color 0.2s}
+  button:hover:not(:disabled){filter:brightness(1.1)}
+  button.secondary{background:#444;color:#eaeaea}
+  #grid{display:grid;grid-template-columns:repeat(5,56px);grid-gap:6px} /* Grid 5x5 */
+  .cell{width:56px;height:56px;background:#222;border:2px solid #2b2b2b;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;font-weight:700;font-size:20px;transition:background-color 0.1s, border-color 0.1s}
+  .cell:not(.revealed):not(.game-over):hover{transform:scale(1.03);background:#2b2b2b}
+  
+  /* Stavy buněk */
+  .cell.flagged{background:var(--hint);color:#03120a;border-color:var(--hint);font-size:24px}
+  .cell.revealed{background:var(--revealed-safe);cursor:default;border-color:#1c1c1c;font-weight:700;}
+  .cell.revealed.fragment.hit{background:var(--fragment);color:white;border-color:var(--fragment);outline:3px solid white;}
+  .cell.deactivated{background:var(--deactivated);color:white;border-color:var(--deactivated);font-size:16px;}
+  .cell.password-mine{border-style: dashed; border-color: var(--accent); opacity: 0.8;} /* Vizuální rozlišení miny s heslem na konci hry (debug) */
+  
+  /* Čísla (pro kontrast) */
+  .cell[data-count="1"]{color:#007bff;} 
+  .cell[data-count="2"]{color:#28a745;} 
+  .cell[data-count="3"]{color:#dc3545;} 
+  .cell[data-count="4"]{color:#6c757d;} 
+  .cell[data-count="5"]{color:#9c27b0;}
+  
+  /* Game over/Disabled */
+  .cell.game-over{cursor:default;}
+  
+  #meta{display:flex;justify-content:space-between;margin-top:10px;font-size:13px}
+  #passwordDisplay{font-size:24px; letter-spacing: 4px; margin: 12px 0; padding: 10px; border: 1px dashed #444; text-align: center; color: var(--accent);}
+  .life-icon{color: var(--fragment); font-size: 20px;}
+  .life-icon.lost{color: #444;}
+</style>
+</head>
+<body>
+  <div class="panel">
+    <h2>Pattern Match — Získávání hesla</h2>
+    <p>Cíl: Deaktivuj všech <span id="passwordLength">5</span> fragmentů hesla (🚩) a odhal všechny bezpečné bloky. Celkem je <span id="totalMines">8</span> fragmentů (min). Máš 3 životy.</p>
+
+    <div id="passwordDisplay"></div>
+    <div id="controls">
+      <button class="secondary" id="resetBtn">Nová hra</button>
+      <div id="livesDisplay"></div>
+    </div>
+
+    <div id="grid"></div>
+    <div id="meta">
+      <div>Flags Placed: <span id="flagCount">0</span></div>
+      <div>Deactivated: <span id="deactivatedCount">0</span>/<span id="passwordLengthMeta">0</span></div>
+    </div>
+  </div>
+
+<script>
+const rows = 8, cols = 8;
+const passwordLength = 5; // Délka hesla (a počet min s písmenem)
+const totalMines = 8;     // Celkový počet fragmentů (min)
+const initialLives = 3;
+
+let secretPassword = generateSecretPassword(passwordLength);
+let correct = []; // Všechny fragmenty (miny)
+let passwordMines = []; // Fragmenty, které nesou písmeno hesla (rc strings)
+let revealed = []; 
+let flagged = []; 
+let deactivated = []; // Správně označené fragmenty HESLA
+let lives = initialLives;
+let gameOver = false;
+let firstClick = true; // Sledujeme první kliknutí
+let passwordState = Array(passwordLength).fill('_');
+
+const gridEl = document.getElementById('grid');
+const flagCountEl = document.getElementById('flagCount');
+const passwordLengthEl = document.getElementById('passwordLength');
+const passwordLengthMetaEl = document.getElementById('passwordLengthMeta');
+const totalMinesEl = document.getElementById('totalMines');
+const deactivatedCountEl = document.getElementById('deactivatedCount');
+const resetBtn = document.getElementById('resetBtn');
+const livesDisplayEl = document.getElementById('livesDisplay');
+const passwordDisplayEl = document.getElementById('passwordDisplay');
+
+passwordLengthEl.textContent = passwordLength;
+passwordLengthMetaEl.textContent = passwordLength;
+totalMinesEl.textContent = totalMines;
+
+function generateSecretPassword(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let pass = '';
+    for(let i=0; i < length; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass;
+}
+
+function rc(r,c){return `${r}-${c}`}
+function parseRc(key){const parts = key.split('-'); return {r: parseInt(parts[0]), c: parseInt(parts[1])}}
+function randInt(n){return Math.floor(Math.random()*n)}
+
+/**
+ * Rozmístí miny, ale až po prvním kliknutí, aby zajistil bezpečný start.
+ * @param {string} safeKey - rc řetězec prvního kliknutí, kde nesmí být žádná mina ani v okolí (3x3).
+ */
+function placeFragments(safeKey=null){
+  correct = [];
+  
+  let invalidKeys = [];
+  if (safeKey) {
+    const {r, c} = parseRc(safeKey);
+    // Zajištění, že první kliknutí a jeho okolí (3x3) je bez miny
+    for(let dr=-1; dr<=1; dr++){
+        for(let dc=-1; dc<=1; dc++){
+            const nr = r + dr;
+            const nc = c + dc;
+            if(nr >= 0 && nr < rows && nc >= 0 && nc < cols){
+                 invalidKeys.push(rc(nr, nc));
+            }
+        }
+    }
+  }
+
+  while(correct.length < totalMines){
+    const r = randInt(rows), c = randInt(cols);
+    const key = rc(r,c);
+    
+    // Zajištění, že mina není na již umístěné pozici nebo na zakázané pozici
+    if(!correct.includes(key) && !invalidKeys.includes(key)) {
+        correct.push(key);
+    }
+  }
+  
+  // Určení min, které nesou písmeno hesla
+  passwordMines = [];
+  let tempMines = [...correct];
+  for(let i=0; i < passwordLength; i++){
+      const idx = randInt(tempMines.length);
+      passwordMines.push(tempMines.splice(idx, 1)[0]);
+  }
+  
+  // console.log('All fragments:', correct, 'Password Mines:', passwordMines, 'Password:', secretPassword);
+}
+
+function getAdjacentCount(r, c){
+    let count = 0;
+    for(let dr=-1; dr<=1; dr++){
+        for(let dc=-1; dc<=1; dc++){
+            if(dr===0 && dc===0) continue;
+            const nr = r + dr;
+            const nc = c + dc;
+            const key = rc(nr, nc);
+            if(nr >= 0 && nr < rows && nc >= 0 && nc < cols && correct.includes(key)){
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+function createGrid(){
+  gridEl.innerHTML = '';
+  gridEl.style.gridTemplateColumns = `repeat(${cols},56px)`;
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const key = rc(r,c);
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.rc = key;
+      cell.textContent = ''; // Prázdné na začátku
+      
+      cell.addEventListener('click', (e) => onCellClick(cell, e));
+      cell.addEventListener('contextmenu', (e) => onCellRightClick(cell, e));
+      gridEl.appendChild(cell);
+    }
+  }
+  updateDisplay();
+}
+
+function updateDisplay(){
+  flagCountEl.textContent = flagged.length;
+  deactivatedCountEl.textContent = deactivated.length;
+  passwordDisplayEl.textContent = passwordState.join(' ');
+
+  // Zobrazení životů
+  livesDisplayEl.innerHTML = '';
+  for(let i=1; i<=initialLives; i++){
+      const span = document.createElement('span');
+      span.className = 'life-icon';
+      span.textContent = '♥';
+      if (i > lives) {
+          span.classList.add('lost');
+      }
+      livesDisplayEl.appendChild(span);
+  }
+}
+
+function endGame(win, hitKey=null){
+    gameOver = true;
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach(cell => {
+        cell.classList.add('game-over'); 
+        const key = cell.dataset.rc;
+        
+        if(correct.includes(key) && !deactivated.includes(key)){
+            // Fragmenty (nepřátelské miny)
+            cell.classList.add('revealed', 'fragment');
+            cell.textContent = '💣';
+            if(passwordMines.includes(key)) cell.classList.add('password-mine'); // Zvýraznění miny s heslem
+            if(key === hitKey) cell.classList.add('hit');
+        } else if (correct.includes(key) && deactivated.includes(key)){
+             // Deaktivované fragmenty hesla
+             cell.classList.add('deactivated', 'password-mine');
+        } else if (flagged.includes(key) && !correct.includes(key)){
+            // Špatně označená vlajka
+            cell.textContent = '❌';
+            cell.classList.add('revealed');
+        }
+    });
+
+    if (win) {
+        alert(`VÍTĚZSTVÍ! Heslo je: ${secretPassword}`);
+    } else {
+        alert('PROHRA! Klikl jsi na fragment (💣) nebo vyčerpal životy. Klikni na Nová hra.');
+    }
+}
+
+function removeFlag(cell, key){
+    flagged = flagged.filter(k => k !== key);
+    cell.classList.remove('flagged');
+    cell.textContent = '';
+    updateDisplay();
+}
+
+function onCellRightClick(cell, e){
+  e.preventDefault(); 
+  const key = cell.dataset.rc;
+  if(gameOver || cell.classList.contains('revealed') || deactivated.includes(key) || firstClick) return;
+
+  if(flagged.includes(key)){
+    // Zrušení vlajky, pokud NENÍ deaktivovaný fragment
+    if (!deactivated.includes(key)) {
+        removeFlag(cell, key);
+    }
+  } else {
+    // Označení vlajkou
+    if(flagged.length >= totalMines){
+        alert(`Můžeš umístit maximálně ${totalMines} vlajek.`);
+        return;
+    }
+    
+    flagged.push(key);
+    cell.classList.add('flagged');
+    cell.textContent = '🚩';
+
+    if(passwordMines.includes(key)){
+        // SPRÁVNÉ OZNAČENÍ FRAGMENTU HESLA (DEAKTIVACE)
+        deactivated.push(key);
+        // Odhal písmeno z hesla
+        const index = passwordMines.indexOf(key);
+        passwordState[index] = secretPassword[index];
+        
+        cell.classList.add('deactivated');
+        cell.classList.remove('flagged');
+        cell.textContent = passwordState[index]; 
+    } else if (correct.includes(key)){
+        // OZNAČENÍ FRAGMENTU BEZ PÍSMENE HESLA
+        // Nic se nestane, ale vlajka zůstane (dokud ji hráč neodstraní)
+    } else {
+        // ŠPATNÉ OZNAČENÍ BEZPEČNÉHO BLOKU
+        lives--;
+        updateDisplay();
+        
+        cell.style.backgroundColor = 'var(--fragment)';
+        setTimeout(() => {
+            cell.style.backgroundColor = ''; // Reset barvy
+            removeFlag(cell, key); // Odstranění vlajky po chybě
+            if(lives <= 0) {
+                endGame(false);
+            }
+        }, 500);
+    }
+  }
+  
+  updateDisplay();
+  checkCompletion();
+}
+
+
+/**
+ * Rekurzivně odhalí okolní bezpečné buňky (flood fill).
+ */
+function autoReveal(r, c) {
+    if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+    
+    const key = rc(r, c);
+    const cell = document.querySelector(`[data-rc="${key}"]`);
+
+    // Zastav rekurzi, pokud je již odhalená, fragment, nebo označená vlajkou/deaktivovaná
+    if (gameOver || revealed.includes(key) || correct.includes(key) || flagged.includes(key) || deactivated.includes(key)) return;
+
+    // Přidej do odhalených a aktualizuj DOM
+    if (!revealed.includes(key)) {
+        revealed.push(key);
+        cell.classList.add('revealed');
+    } else {
+        return; 
+    }
+    
+    const count = getAdjacentCount(r, c);
+    if(count > 0){
+        cell.textContent = count;
+        cell.dataset.count = count;
+        return;
+    } else {
+        cell.textContent = '';
+    }
+
+    // Pokud je count 0, rekurzivně prozkoumej okolní buňky
+    for(let dr=-1; dr<=1; dr++){
+        for(let dc=-1; dc<=1; dc++){
+            if(dr===0 && dc===0) continue;
+            autoReveal(r + dr, c + dc);
+        }
+    }
+}
+
+function onCellClick(cell, e){
+  const key = cell.dataset.rc;
+  if(gameOver || cell.classList.contains('revealed') || flagged.includes(key) || deactivated.includes(key)) return;
+  
+  const {r, c} = parseRc(key);
+
+  if (firstClick) {
+      // 1. ZAJISTI BEZPEČNÝ START
+      placeFragments(key); 
+      firstClick = false;
+  }
+  
+  if(correct.includes(key)){
+    // OKAMŽITÁ PROHRA - Klikl jsi na fragment
+    endGame(false, key);
+  } else {
+    // BEZPEČNÝ BLOK
+    autoReveal(r, c);
+    checkCompletion();
+  }
+}
+
+function checkCompletion(){
+  // WIN condition: All safe cells have been revealed AND all password mines are deactivated.
+  const totalSafeCells = (rows * cols) - totalMines;
+  const allSafeRevealed = revealed.length === totalSafeCells;
+  const allPasswordMinesDeactivated = deactivated.length === passwordLength;
+  
+  if (allSafeRevealed && allPasswordMinesDeactivated) {
+    endGame(true);
+  }
+}
+
+function reset(){
+  // Nové heslo
+  secretPassword = generateSecretPassword(passwordLength);
+  
+  correct = []; passwordMines = []; revealed = []; flagged = []; deactivated = []; gameOver = false;
+  lives = initialLives;
+  passwordState = Array(passwordLength).fill('_');
+  firstClick = true; // Reset pro zajištění bezpečného prvního kliknutí
+
+  // Před resetem gridu (při prvním kliknutí se zavolá placeFragments)
+  createGrid();
+}
+
+resetBtn.addEventListener('click', reset);
+
+// init (jen vytvoření prázdného gridu, miny se rozmístí při prvním kliknutí)
+createGrid();
+</script>
+</body>
+</html>

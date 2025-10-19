@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Analyst Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+  :root {
+    --color-bg: #1e1e1e; --color-panel-bg: #2d2d30; --color-text: #d4d4d4;
+    --color-blue: #569cd6; --color-green: #608b4e; --color-yellow: #dcdcaa;
+    --color-red: #f44747; --color-purple: #c586c0; --color-grey: #808080;
+    --color-orange: #ce9178;
+  }
+
+  body {
+    background-color: var(--color-bg); color: var(--color-text);
+    font-family: 'Fira Code', monospace; display: flex;
+    justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;
+    box-sizing: border-box;
+  }
+
+  #gameContainer {
+    background-color: var(--color-panel-bg); padding: 25px; border-radius: 8px;
+    border: 1px solid #444; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    width: 1200px; max-width: 100%;
+  }
+  
+  #missionBrief { text-align: center; margin: 0 0 25px 0; font-size: 1.3em; color: var(--color-orange); }
+
+  .dashboard-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 20px;
+  }
+
+  .dashboard-panel {
+      background-color: #252526;
+      padding: 20px;
+      border-radius: 6px;
+      border-top: 4px solid var(--color-grey);
+      min-height: 400px;
+      display: flex;
+      flex-direction: column;
+  }
+  .dashboard-panel h3 { margin: 0 0 15px 0; color: var(--color-text); }
+
+  /* Left Panel: Data Stream */
+  #dataPanel { border-top-color: var(--color-purple); }
+  #dataStream { height: 350px; overflow-y: auto; background-color: #1e1e1e; padding: 10px; border-radius: 4px; }
+  .data-entry { padding: 8px; margin-bottom: 5px; border-radius: 3px; cursor: default; }
+  .entry-noise { color: var(--color-grey); font-size: 0.9em; }
+  .entry-user { display: flex; justify-content: space-between; align-items: center; }
+  .user-hash {
+      color: var(--color-yellow); font-size: 0.9em; cursor: pointer;
+      padding: 3px 6px; border-radius: 3px; transition: background-color 0.2s;
+  }
+  .user-hash:hover { background-color: #3e3e42; }
+  .user-hash.copied { background-color: var(--color-green); color: var(--color-bg); }
+
+  /* Right Panel: Cracking Station */
+  #crackPanel { border-top-color: var(--color-red); }
+  #hashInput {
+      width: 100%; height: 80px; background-color: #1e1e1e; padding: 10px; border-radius: 4px;
+      color: var(--color-yellow); font-size: 0.9em; word-break: break-all;
+      margin-bottom: 10px; resize: none; border: 1px solid var(--color-grey);
+      box-sizing: border-box; font-family: 'Fira Code', monospace;
+  }
+  #attackOptions label { display: block; background: #333; padding: 10px; border-radius: 4px; margin-bottom: 10px; cursor: pointer; }
+  #attackOptions input[type="radio"] { display: none; }
+  #attackOptions input[type="radio"]:checked + label { background-color: var(--color-blue); color: var(--color-bg); }
+  #crackBtn {
+      width: 100%; padding: 12px; font-size: 1.1em; border: none; border-radius: 4px;
+      background-color: var(--color-red); color: #fff; cursor: pointer; margin-top: 15px;
+  }
+  #crackBtn:disabled { background-color: var(--color-grey); cursor: not-allowed; }
+  #crackOutput { margin-top: 15px; font-size: 1.2em; color: var(--color-green); font-weight: bold; min-height: 30px; }
+  .button-bar { display:flex; gap: 10px; }
+
+  /* Middle Panel: Login */
+  #loginPanel { border-top-color: var(--color-green); }
+  #loginPanel.disabled { opacity: 0.5; }
+  .form-group { margin-bottom: 15px; }
+  .form-group label { display: block; margin-bottom: 5px; color: var(--color-grey); }
+  .form-group input {
+      width: 100%; padding: 10px; font-size: 1.1em; background-color: #333;
+      border: 1px solid var(--color-grey); color: var(--color-text); border-radius: 4px;
+      box-sizing: border-box; font-family: 'Fira Code', monospace;
+  }
+  #loginBtn {
+      width: 100%; padding: 12px; font-size: 1.2em; border: none; border-radius: 5px;
+      background-color: var(--color-green); color: #fff; cursor: pointer;
+  }
+  #loginBtn:disabled { background-color: var(--color-grey); }
+
+  /* Feedback Screen (Modal) */
+  #feedbackScreen.modal-overlay {
+    position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.8); display: flex;
+    justify-content: center; align-items: center; z-index: 100;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out;
+  }
+  #feedbackScreen.visible { opacity: 1; pointer-events: auto; }
+  #feedbackScreen .modal-content {
+    background-color: var(--color-panel-bg); padding: 30px 40px;
+    border-radius: 10px; border: 2px solid var(--color-green);
+    max-width: 500px; width: 90%; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <h2 id="missionBrief">Cíl: Najděte, zkopírujte a vložte hash, který patří administrátorovi.</h2>
+    <div class="dashboard-layout">
+        <!-- Left Panel -->
+        <div id="dataPanel" class="dashboard-panel">
+            <h3>Uniklá Data</h3>
+            <div id="dataStream"></div>
+        </div>
+
+        <!-- Middle Panel -->
+        <div id="loginPanel" class="dashboard-panel disabled">
+            <h3>Přístup do Systému</h3>
+            <form id="loginForm" onsubmit="event.preventDefault(); handleLogin();">
+                <div class="form-group">
+                    <label for="usernameInput">Uživatelské jméno:</label>
+                    <input type="text" id="usernameInput" required disabled>
+                </div>
+                <div class="form-group">
+                    <label for="passwordInput">Prolomené Heslo:</label>
+                    <input type="text" id="passwordInput" required disabled>
+                </div>
+                <button id="loginBtn" type="submit" disabled>Přihlásit se</button>
+            </form>
+        </div>
+
+        <!-- Right Panel -->
+        <div id="crackPanel" class="dashboard-panel">
+            <h3>Crackovací Stanice</h3>
+            <p>Vložte hash k analýze:</p>
+            <textarea id="hashInput" rows="3" placeholder="...čekám na hash..."></textarea>
+            <div class="button-bar">
+                <button id="pasteBtn" style="flex-grow: 1;">Vložit ze schránky</button>
+                <button id="clearBtn">Vyčistit</button>
+            </div>
+            
+            <p style="margin-top: 20px;">Zvolte metodu útoku:</p>
+            <div id="attackOptions"></div>
+            <button id="crackBtn" disabled>Crack!</button>
+            <div id="crackOutput"></div>
+        </div>
+    </div>
+</div>
+
+<div id="feedbackScreen" class="modal-overlay">
+    <div class="modal-content">
+        <h2 id="feedbackTitle"></h2>
+        <p id="feedbackText"></p>
+        <button id="nextLevelBtn">Další Úroveň</button>
+    </div>
+</div>
+
+<script>
+// === DOM Elements ===
+const missionBrief = document.getElementById('missionBrief');
+const dataStream = document.getElementById('dataStream');
+const loginPanel = document.getElementById('loginPanel');
+const usernameInput = document.getElementById('usernameInput');
+const passwordInput = document.getElementById('passwordInput');
+const loginBtn = document.getElementById('loginBtn');
+const hashInput = document.getElementById('hashInput');
+const pasteBtn = document.getElementById('pasteBtn');
+const clearBtn = document.getElementById('clearBtn');
+const attackOptionsContainer = document.getElementById('attackOptions');
+const crackBtn = document.getElementById('crackBtn');
+const crackOutput = document.getElementById('crackOutput');
+const feedbackScreen = document.getElementById('feedbackScreen');
+const feedbackTitle = document.getElementById('feedbackTitle');
+const feedbackText = document.getElementById('feedbackText');
+const nextLevelBtn = document.getElementById('nextLevelBtn');
+
+// === Game Data: Levels ===
+const LEVELS_FULL = [
+    { level: 1, mission: 'Najděte, zkopírujte a vložte hash, který patří administrátorovi (admin).', db: [ { user: 'john.doe', pass: 'heslo123', target: false }, { user: 'jane.smith', pass: 'milacek', target: false }, { user: 'admin', pass: 'secret', target: true } ], crack: { correctAttack: 'dictionary' }, lesson: 'Administrátorské účty s jednoduchými, slovníkovými hesly jsou hlavním cílem útočníků. Slovníkový útok je proti nim velmi efektivní.' },
+    { level: 2, mission: 'Útočník se zaměřil na finančního ředitele (cfo). Získejte jeho hash.', db: [ { user: 'support', pass: '123456', target: false }, { user: 'cfo', pass: 'Q#f7!', target: true }, { user: 'guest', pass: 'guest', target: false } ], crack: { correctAttack: 'bruteforce' }, lesson: 'Krátká hesla, i když jsou náhodná, jsou zranitelná vůči útoku hrubou silou (Brute-force), který zkouší všechny možné kombinace znaků.' },
+    { level: 3, mission: 'Najděte hash marketingového manažera (mark.mgr).', db: [ { user: 'sales', pass: 'Sales2023!', target: false }, { user: 'mark.mgr', pass: 'Marketing2024', target: true }, { user: 'hr', pass: 'HumanRes!', target: false } ], crack: { correctAttack: 'hybrid' }, lesson: 'Přidávání roku nebo jednoduchých čísel na konec slov je častý zvyk. Kombinovaný (Hybridní) útok kombinuje slovník s přidáváním znaků a je v těchto případech úspěšný.' }
+];
+const ATTACK_TYPES = { dictionary: { name: 'Slovníkový útok' }, bruteforce: { name: 'Útok hrubou silou' }, hybrid: { name: 'Kombinovaný útok' } };
+const NOISE_DATA = ['<NETWORK TRAFFIC>', '<SYSTEM PING>', '<CACHE DUMP>', '<KERNEL LOG>'];
+
+// === Game State ===
+let currentLevel = 0;
+let clipboard = ''; // Naše virtuální schránka
+let targetUser = null;
+let crackedPassword = null;
+
+// === Game Flow Functions ===
+function init() {
+    loadLevel(currentLevel);
+    nextLevelBtn.addEventListener('click', () => {
+        currentLevel++;
+        loadLevel(currentLevel);
+    });
+    crackBtn.addEventListener('click', handleCrack);
+    pasteBtn.addEventListener('click', () => {
+        hashInput.value = clipboard;
+        crackBtn.disabled = false;
+    });
+    clearBtn.addEventListener('click', () => {
+        hashInput.value = '';
+        crackBtn.disabled = true;
+    });
+}
+
+function loadLevel(levelIndex) {
+    if (levelIndex >= LEVELS_FULL.length) {
+        missionBrief.textContent = 'Gratulujeme! Všechny výzvy dokončeny!';
+        document.querySelector('.dashboard-layout').style.display = 'none';
+        return;
+    }
+    const level = LEVELS_FULL[levelIndex];
+    targetUser = level.db.find(entry => entry.target);
+    crackedPassword = null;
+    clipboard = '';
+
+    // --- Reset UI ---
+    missionBrief.textContent = `Úroveň ${level.level}: ${level.mission}`;
+    feedbackScreen.classList.remove('visible');
+    
+    // Left Panel
+    dataStream.innerHTML = '';
+    const displayData = [...level.db];
+    for(let i = 0; i < 4; i++) displayData.push({noise: NOISE_DATA[Math.floor(Math.random()*NOISE_DATA.length)]});
+    displayData.sort(() => Math.random() - 0.5);
+    
+    displayData.forEach(entry => {
+        const div = document.createElement('div');
+        div.className = 'data-entry';
+        if(entry.noise){
+            div.classList.add('entry-noise');
+            div.textContent = entry.noise;
+        } else {
+            div.classList.add('entry-user');
+            const hash = generateFakeHash(entry.pass);
+            div.innerHTML = `<span><strong>User:</strong> ${entry.user}</span> <span class="user-hash" title="Klikni pro zkopírování">${hash}</span>`;
+            div.querySelector('.user-hash').onclick = (e) => handleCopyHash(hash, e.target);
+        }
+        dataStream.appendChild(div);
+    });
+
+    // Middle Panel
+    loginPanel.classList.add('disabled');
+    [usernameInput, passwordInput, loginBtn].forEach(el => el.disabled = true);
+    usernameInput.value = ''; passwordInput.value = '';
+
+    // Right Panel
+    hashInput.value = '';
+    crackBtn.disabled = true;
+    crackOutput.textContent = '';
+    attackOptionsContainer.innerHTML = '';
+    Object.keys(ATTACK_TYPES).forEach(key => {
+        const attack = ATTACK_TYPES[key];
+        const id = `attack-${key}`;
+        attackOptionsContainer.innerHTML += `
+            <input type="radio" name="attack" id="${id}" value="${key}">
+            <label for="${id}">${attack.name}</label>
+        `;
+    });
+}
+
+// === Event Handlers ===
+function handleCopyHash(hash, element) {
+    clipboard = hash;
+    document.querySelectorAll('.user-hash').forEach(el => el.classList.remove('copied'));
+    element.classList.add('copied');
+    element.textContent = 'Zkopírováno!';
+    setTimeout(() => {
+        element.textContent = hash;
+        element.classList.remove('copied');
+    }, 1500);
+}
+
+function handleCrack() {
+    const selectedAttack = document.querySelector('input[name="attack"]:checked');
+    if (!selectedAttack) { alert("Musíte zvolit metodu útoku!"); return; }
+
+    const level = LEVELS_FULL[currentLevel];
+    if (hashInput.value !== generateFakeHash(targetUser.pass)) {
+        crackOutput.textContent = 'CHYBA! Vložený hash neodpovídá cíli.';
+        return;
+    }
+
+    if (selectedAttack.value === level.crack.correctAttack) {
+        crackOutput.textContent = 'Lámání hesla...';
+        crackBtn.disabled = true;
+
+        setTimeout(() => {
+            crackedPassword = targetUser.pass;
+            crackOutput.textContent = `ÚSPĚCH! Heslo: ${crackedPassword}`;
+            
+            loginPanel.classList.remove('disabled');
+            [usernameInput, passwordInput, loginBtn].forEach(el => el.disabled = false);
+            usernameInput.focus();
+        }, 1500);
+    } else {
+        crackOutput.textContent = 'CHYBA! Tato metoda je neúčinná.';
+    }
+}
+
+function handleLogin() {
+    if (usernameInput.value.toLowerCase() === targetUser.user.toLowerCase() && passwordInput.value === crackedPassword) {
+        feedbackTitle.textContent = 'Přístup Povolen!';
+        feedbackText.textContent = LEVELS_FULL[currentLevel].lesson;
+        feedbackScreen.classList.add('visible');
+    } else {
+        alert('Nesprávné přihlašovací údaje!');
+    }
+}
+
+// === Utility ===
+function generateFakeHash(password) {
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) { hash = ((hash << 5) - hash) + password.charCodeAt(i); hash |= 0; }
+    return 'sha256:' + (hash >>> 0).toString(16).padStart(8, '0') + (Math.abs(hash * 31) >>> 0).toString(16).padStart(8, '0');
+}
+
+// === Initial Call ===
+init();
+
+</script>
+</body>
+</html>

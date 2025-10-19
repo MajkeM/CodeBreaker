@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minihra C — IT Routing Puzzle (Limit pokusů)</title>
+<style>
+  :root {
+    --color-correct: #00ff00;
+    --color-error: #ff4500;
+    --color-irrelevant: #9c27b0;
+    --color-hint: #ffd700;
+    --color-panel: #1e1e1e;
+    --color-bg: #121212;
+  }
+  body {
+    background-color: var(--color-bg);
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  canvas {
+    background-color: var(--color-panel);
+    border: 2px solid var(--color-correct);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    cursor: pointer;
+    display: none;
+  }
+  #info {
+    position: absolute;
+    top: 20px;
+    text-align: center;
+    z-index: 10;
+  }
+  .controls-group {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    align-items: center;
+  }
+  button {
+    margin-top: 10px;
+    padding: 8px 15px;
+    background-color: var(--color-correct);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--color-bg);
+    transition: background-color 0.2s;
+  }
+  button:hover:not(:disabled) {
+    background-color: #39ff14;
+  }
+  button:disabled {
+    background-color: #444;
+    color: #777;
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background-color: #555;
+    color: #e0e0e0;
+  }
+  #statusMessage {
+    margin-top: 15px;
+    font-weight: bold;
+    min-height: 20px;
+  }
+  #introModal {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  #modalContent {
+    background-color: var(--color-panel);
+    padding: 30px;
+    border-radius: 8px;
+    border: 2px solid var(--color-correct);
+    max-width: 500px;
+    text-align: left;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+  }
+  #modalContent h3 {
+    color: var(--color-correct);
+    text-align: center;
+    margin-top: 0;
+  }
+  #modalContent strong {
+    color: #ffb300;
+  }
+  #packetCount {
+      color: var(--color-error);
+      font-size: 1.2em;
+      margin-left: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="introModal">
+    <div id="modalContent">
+        <h3>Úkol: Zachránit data (2 Pokusy)</h3>
+        <p>Kvůli kritické situaci máme pouze **dva pokusy (dva pakety)** k bezpečnému doručení dat ze Serveru do Database.</p>
+        <p>Musíte pečlivě naplánovat cestu. Každá neúspěšná simulace (prohra) spotřebuje jeden paket.</p>
+        <ul>
+            <li>• **Bezpečnost:** Data musí projít logickou cestou s ohledem na Firewall.</li>
+            <li>• **Čistota:** Jakýkoli průchod irelevantním prvkem (Termoska, HDMI Kabel) data korumpuje.</li>
+            <li>• **Efektivita:** Cesta musí být optimální (přesně ${correctPath.length} uzlů), aby se data neztratila.</li>
+        </ul>
+        <p><strong>Neztrácejte pakety! Hodně štěstí.</strong></p>
+        <div style="text-align: center;">
+            <button onclick="startGame()">Start Hry</button>
+        </div>
+    </div>
+</div>
+
+<div id="info">
+  <h2>IT Routing Puzzle (Plánování)</h2>
+  <p>Fáze: Plánování trasy. Kliknutím vyberte celou cestu od začátku do konce.</p>
+  
+  <div class="controls-group">
+    <button id="simulateBtn" onclick="startSimulation()" disabled>Spustit simulaci</button>
+    <button class="secondary" id="hintBtn" onclick="useHint()">Hint</button>
+    <button class="secondary" id="resetBtn" onclick="resetGame()">Reset plánu</button>
+    <div id="packetCount">Zbývá paketů: <span>2</span></div>
+  </div>
+  
+  <div id="statusMessage"></div>
+</div>
+<canvas id="gameCanvas" width="700" height="450"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const statusMessageEl = document.getElementById('statusMessage');
+const introModalEl = document.getElementById('introModal');
+const simulateBtn = document.getElementById('simulateBtn');
+const hintBtn = document.getElementById('hintBtn');
+const resetBtn = document.getElementById('resetBtn');
+const packetCountEl = document.querySelector('#packetCount span');
+
+// === Konfigurace Hry ===
+const NODE_SIZE = 25;
+const MAX_PACKETS = 2;
+
+const nodes = [
+  {x: 50, y: 220, id: 'Server', type: 'source', category: 'network', color: '#00ff00', originalColor: '#00ff00'},
+  {x: 150, y: 120, id: 'Firewall 1', type: 'firewall', category: 'network', color: '#ff4500', originalColor: '#ff4500'},
+  {x: 250, y: 300, id: 'Switch', type: 'switch', category: 'network', color: '#1e90ff', originalColor: '#1e90ff'},
+  {x: 350, y: 150, id: 'Firewall 2', type: 'firewall', category: 'network', color: '#ff4500', originalColor: '#ff4500'},
+  {x: 450, y: 250, id: 'Router', type: 'router', category: 'network', color: '#1e90ff', originalColor: '#1e90ff'},
+  {x: 550, y: 180, id: 'Database', type: 'destination', category: 'network', color: '#00ff00', originalColor: '#00ff00'},
+  
+  // IRELEVANTNÍ PRVKY
+  {x: 100, y: 350, id: 'Termoska', type: 'irrelevant', category: 'irrelevant', color: 'var(--color-irrelevant)', originalColor: 'var(--color-irrelevant)'},
+  {x: 400, y: 350, id: 'HDMI Kabel', type: 'irrelevant', category: 'irrelevant', color: 'var(--color-irrelevant)', originalColor: 'var(--color-irrelevant)'}
+];
+
+const connections = [
+    ['Server', 'Firewall 1'], ['Server', 'Switch'], ['Firewall 1', 'Switch'], ['Switch', 'Firewall 2'],
+    ['Firewall 1', 'Firewall 2'], ['Firewall 2', 'Router'], ['Switch', 'Router'], ['Router', 'Database'],
+    ['Server', 'Termoska'], ['Switch', 'HDMI Kabel'], ['Router', 'HDMI Kabel']
+];
+
+const correctPath = ['Server', 'Firewall 1', 'Firewall 2', 'Router', 'Database'];
+
+let playerPath = [];
+let animationPacket = null;
+let gameState = 'ready'; // 'ready', 'planning', 'testing', 'win', 'lose'
+let hoverNode = null;
+let hintUsed = false; 
+let packetsRemaining = MAX_PACKETS; // Zbývající pokusy
+
+// === Funkce pro úvod a spuštění hry ===
+window.startGame = function() {
+    introModalEl.style.display = 'none';
+    canvas.style.display = 'block';
+    gameState = 'planning';
+    resetGame(true); // Plný reset na začátku hry
+}
+
+// === Funkce kreslení a animace (stejné jako předtím) ===
+function drawNodes() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 1. Draw ALL possible connections (faded)
+  connections.forEach(([id1, id2]) => {
+    const fromNode = nodes.find(n => n.id === id1);
+    const toNode = nodes.find(n => n.id === id2);
+    if(!fromNode || !toNode) return;
+    ctx.beginPath();
+    ctx.moveTo(fromNode.x, fromNode.y);
+    ctx.lineTo(toNode.x, toNode.y);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // 2. Draw selected path connections
+  for(let i=0; i<playerPath.length-1; i++){
+    const fromNode = nodes.find(n => n.id === playerPath[i]);
+    const toNode = nodes.find(n => n.id === playerPath[i+1]);
+    if(!fromNode || !toNode) continue;
+    ctx.beginPath();
+    ctx.moveTo(fromNode.x, fromNode.y);
+    ctx.lineTo(toNode.x, toNode.y);
+    ctx.strokeStyle = 'var(--color-correct)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // 3. Draw nodes
+  nodes.forEach(node => {
+    const isSelected = playerPath.includes(node.id);
+    
+    ctx.save();
+    ctx.translate(node.x, node.y);
+
+    ctx.beginPath();
+    let fill = isSelected ? node.color : (node.id === hoverNode && gameState === 'planning') ? '#555' : '#444';
+    let stroke = node.color;
+    
+    if (node.category === 'irrelevant') {
+        ctx.moveTo(-NODE_SIZE, 0); ctx.lineTo(NODE_SIZE, 0); ctx.lineTo(0, NODE_SIZE); ctx.closePath();
+    } else if (node.type.includes('firewall')) {
+        ctx.rect(-NODE_SIZE, -NODE_SIZE, NODE_SIZE*2, NODE_SIZE*2);
+    } else if (node.type === 'source' || node.type === 'destination') {
+        ctx.arc(0, 0, NODE_SIZE, 0, Math.PI*2);
+    } else {
+        ctx.arc(0, 0, NODE_SIZE, 0, Math.PI*2);
+    }
+    
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Node label
+    ctx.fillStyle = '#e0e0e0';
+    ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(node.id, 0, NODE_SIZE + 15);
+
+    // Pořadí v cestě
+    if (isSelected) {
+        ctx.fillStyle = '#121212';
+        ctx.font = 'bold 16px Courier New';
+        ctx.fillText(playerPath.indexOf(node.id) + 1, 0, 6);
+    }
+    
+    ctx.restore();
+  });
+}
+
+function updateStatus(message, color = 'var(--color-correct)') {
+    statusMessageEl.textContent = message;
+    statusMessageEl.style.color = color;
+}
+
+function animatePacket(startNode, endNode, stepIndex) {
+    animationPacket = {
+        from: startNode,
+        to: endNode,
+        progress: 0,
+        stepIndex: stepIndex
+    };
+    requestAnimationFrame(gameLoop);
+}
+
+function drawPacket() {
+    if (!animationPacket) return;
+
+    const { from, to, progress, stepIndex } = animationPacket;
+    
+    const x = from.x + (to.x - from.x) * progress;
+    const y = from.y + (to.y - from.y) * progress;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffb300';
+    ctx.fill();
+
+    animationPacket.progress += 0.04;
+
+    if (animationPacket.progress >= 1) {
+        animationPacket = null;
+        
+        const arrivedNode = nodes.find(n => n.id === playerPath[stepIndex]);
+        
+        // KONTROLA CHYBY PO PŘÍCHODU DO UZLU
+        // Kontrola 1: Korupce kvůli irelevantnímu prvku nebo špatné logice
+        if (arrivedNode.category === 'irrelevant' || (stepIndex < correctPath.length && arrivedNode.id !== correctPath[stepIndex]) || (stepIndex >= correctPath.length && arrivedNode.id !== correctPath[correctPath.length - 1])) {
+            let message;
+            if (arrivedNode.category === 'irrelevant') {
+                 message = `Data zkorumpována! Prošla přes irelevantní prvek (${arrivedNode.id}).`;
+            } else if (arrivedNode.id === 'Database' && playerPath.length > correctPath.length) {
+                 message = `Data dorazila, ale cesta byla zbytečně dlouhá/neefektivní!`;
+            } else {
+                 message = `Data zkorumpována v uzlu ${arrivedNode.id} (Špatná logika sítě/neefektivní cesta)!`;
+            }
+            endGame(false, arrivedNode, message);
+            return;
+        }
+
+
+        // ÚSPĚŠNÝ PRŮCHOD UZLEM
+        const nextStepIndex = stepIndex + 1;
+        
+        if (nextStepIndex < playerPath.length) {
+             const nextNodeId = playerPath[nextStepIndex];
+             const nextNode = nodes.find(n => n.id === nextNodeId);
+             
+             updateStatus(`Data dorazila do ${arrivedNode.id}. Pokračuji na ${nextNode.id}...`, '#ffb300');
+             setTimeout(() => {
+                 animatePacket(arrivedNode, nextNode, nextStepIndex);
+             }, 500);
+        } else {
+            // KONEC SIMULACE
+            endGame(true);
+        }
+    } else {
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+function gameLoop() {
+    drawNodes();
+    drawPacket();
+}
+
+
+// === Herní logika ===
+function isConnected(id1, id2) {
+    return connections.some(([a, b]) => (a === id1 && b === id2) || (a === id2 && b === id1));
+}
+
+canvas.addEventListener('mousemove', (e) => {
+    if (gameState !== 'planning') return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    let newNode = null;
+    nodes.forEach(node => {
+        const dx = mouseX - node.x;
+        const dy = mouseY - node.y;
+        if(Math.sqrt(dx*dx + dy*dy) < NODE_SIZE && !playerPath.includes(node.id)){
+           newNode = node.id;
+        }
+    });
+    
+    if (newNode !== hoverNode) {
+        hoverNode = newNode;
+        drawNodes();
+    }
+});
+
+
+canvas.addEventListener('click', (e) => {
+  if (gameState !== 'planning') return;
+  // ... (Logika plánování - stejná jako předtím)
+  
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  nodes.forEach(node => {
+    const dx = mouseX - node.x;
+    const dy = mouseY - node.y;
+
+    if(Math.sqrt(dx*dx + dy*dy) < NODE_SIZE && !playerPath.includes(node.id)){
+      
+      const lastNodeId = playerPath[playerPath.length - 1];
+      const nextStepIndex = playerPath.length;
+
+      // 1. Kontrola startu
+      if (nextStepIndex === 0) {
+          if (node.type !== 'source') {
+              updateStatus('Musíš začít u Serveru!', 'var(--color-error)');
+              return;
+          }
+      } 
+      // 2. Kontrola připojení
+      else if (!isConnected(lastNodeId, node.id)) {
+          updateStatus('Tento uzel není přímo propojen s předchozím!', 'var(--color-error)');
+          return;
+      }
+      // 3. Kontrola cíle (může být jen poslední)
+      else if (node.type === 'destination' && playerPath.length < correctPath.length - 1) {
+          updateStatus('Cíl nelze vybrat příliš brzy!', 'var(--color-error)');
+          return;
+      }
+
+
+      // Přidáme uzel do plánu
+      playerPath.push(node.id);
+      drawNodes();
+      
+      // Aktivace tlačítka pro simulaci
+      if (node.type === 'destination') {
+           simulateBtn.disabled = false;
+           updateStatus('Plánování dokončeno! Spusťte simulaci.', 'var(--color-correct)');
+      } else {
+           updateStatus(`Vybráno ${playerPath.length} uzlů. Pokračuj v plánování.`);
+      }
+    }
+  });
+});
+
+window.useHint = function(){
+    if (hintUsed) {
+        alert('Hint byl již jednou použit.');
+        return;
+    }
+    
+    const nextStepIndex = playerPath.length;
+    if (nextStepIndex >= correctPath.length) {
+        alert('Cesta je již kompletní nebo příliš dlouhá, hint není potřeba.');
+        return;
+    }
+    
+    hintUsed = true;
+    hintBtn.disabled = true;
+    
+    const correctNextId = correctPath[nextStepIndex];
+    const correctNextNode = nodes.find(n => n.id === correctNextId);
+    
+    // Proměnná hintUsed uložena
+    updateStatus(`Hint použit! Následující správný uzel je: ${correctNextId}. (${correctNextNode.type.toUpperCase()}).`, 'var(--color-hint)');
+    
+    correctNextNode.color = 'var(--color-hint)';
+    drawNodes();
+    
+    setTimeout(() => {
+        correctNextNode.color = correctNextNode.originalColor;
+        drawNodes();
+    }, 3000);
+}
+
+window.startSimulation = function(){
+    if (gameState !== 'planning' || packetsRemaining <= 0) return;
+
+    gameState = 'testing';
+    simulateBtn.disabled = true;
+    hintBtn.disabled = true;
+    resetBtn.disabled = true;
+    updateStatus('Spouštím simulaci datového toku...', '#ffb300');
+    
+    const startNode = nodes.find(n => n.id === playerPath[0]);
+    const nextNode = nodes.find(n => n.id === playerPath[1]);
+    
+    setTimeout(() => {
+        animatePacket(startNode, nextNode, 1);
+    }, 1000);
+}
+
+function endGame(win, corruptedNode = null, message = '') {
+    
+    if (win) {
+        gameState = 'win';
+        updateStatus('VÍTĚZSTVÍ! Datový tok byl úspěšně dokončen bez korupce!', 'var(--color-correct)');
+    } else {
+        // Ztráta paketu
+        packetsRemaining--;
+        packetCountEl.textContent = packetsRemaining;
+        
+        gameState = 'lose';
+        
+        if (corruptedNode) {
+            corruptedNode.color = 'var(--color-error)';
+            setTimeout(() => {
+                corruptedNode.color = corruptedNode.originalColor;
+                drawNodes();
+            }, 1500);
+        }
+        
+        if (packetsRemaining <= 0) {
+            updateStatus(`PROHRA! ${message}. Došly všechny pakety. Hra končí!`, 'var(--color-error)');
+            simulateBtn.disabled = true;
+            resetBtn.disabled = true;
+            canvas.removeEventListener('click', clickHandler); // Zákaz klikání na canvas
+        } else {
+            updateStatus(`PROHRA! ${message}. Zbývá ${packetsRemaining} paketů. Stiskni Reset plánu.`, 'var(--color-error)');
+            resetBtn.disabled = false;
+        }
+    }
+    simulateBtn.disabled = true;
+    hintBtn.disabled = hintUsed;
+    drawNodes();
+}
+
+window.resetGame = function(fullReset = false){
+  // Full reset se používá jen na úplném začátku
+  if (fullReset) {
+      packetsRemaining = MAX_PACKETS;
+      hintUsed = false;
+      packetCountEl.textContent = packetsRemaining;
+  }
+  
+  if (packetsRemaining <= 0 && !fullReset) return; // Nemůže hrát, pokud došly pakety
+
+  playerPath = [];
+  gameState = 'planning';
+  hoverNode = null;
+  animationPacket = null;
+  simulateBtn.disabled = true;
+  hintBtn.disabled = hintUsed;
+  resetBtn.disabled = false;
+  
+  nodes.forEach(n => n.color = n.originalColor);
+  
+  updateStatus('Fáze: Plánování trasy. Začni u Serveru.');
+  drawNodes();
+}
+
+// Při prvním načtení se zobrazí pouze modal
+// Vytvoříme prázdný grid a nastavíme packet count
+packetCountEl.textContent = MAX_PACKETS;
+drawNodes(); 
+</script>
+</body>
+</html>

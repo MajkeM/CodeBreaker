@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minihra I — C++ Syntax Constructor</title>
+<style>
+  :root {
+    --color-correct: #4CAF50; /* Zelená */
+    --color-error: #F44336;  /* Červená */
+    --color-panel: #282C34;  /* Tmavší šedá */
+    --color-bg: #21252B;     /* Velmi tmavá šedá */
+    --color-highlight: #61AFEF; /* Světle modrá, jako v kódu */
+    --color-life: #E06C75;   /* Světlejší červená */
+    --color-text: #ABB2BF;   /* Světle šedá */
+    --color-button-bg: #404552; /* Šedá na tlačítka */
+    --color-button-hover: #545B6A; /* Tmavší šedá pro hover */
+  }
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: 'Fira Code', 'Courier New', monospace; /* Modernější font */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    font-size: 16px;
+  }
+  #gameContainer {
+    background-color: var(--color-panel);
+    padding: 25px;
+    border-radius: 10px;
+    border: 2px solid var(--color-highlight);
+    box-shadow: 0 0 20px rgba(97, 175, 239, 0.4); /* Modrý stín */
+    width: 600px;
+    max-width: 90%;
+    text-align: center;
+    transition: all 0.3s ease-in-out;
+  }
+  h2 {
+    color: var(--color-highlight);
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+  }
+  #codeDisplay {
+    background-color: #1A1D22; /* Ještě tmavší pro kód */
+    padding: 20px;
+    border-radius: 6px;
+    margin-bottom: 25px;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    font-size: 1.1em;
+    text-align: left;
+    color: #98C379; /* Zelená pro kód, jako v IDE */
+    overflow-x: auto; /* Pro dlouhé řádky */
+  }
+  .code-line {
+    white-space: pre;
+    line-height: 1.6;
+    tab-size: 2; /* Lepší odsazení */
+  }
+  .placeholder {
+    display: inline-block;
+    min-width: 30px; /* Menší výchozí šířka */
+    height: 1.3em; /* Větší výška pro lepší klikatelnost */
+    background-color: var(--color-error);
+    margin: 0 3px;
+    border-radius: 3px;
+    cursor: pointer;
+    vertical-align: middle;
+    animation: pulse 1.2s infinite alternate;
+    position: relative;
+    top: -1px; /* Mírné zarovnání */
+    transition: background-color 0.2s ease-in-out;
+  }
+  .placeholder.correct-flash {
+      background-color: var(--color-correct);
+      animation: none;
+  }
+  .placeholder.error-flash {
+      background-color: var(--color-error);
+      animation: none;
+  }
+  @keyframes pulse {
+    0% { background-color: var(--color-error); box-shadow: 0 0 5px rgba(244, 67, 54, 0.7); }
+    100% { background-color: var(--color-highlight); box-shadow: 0 0 10px rgba(97, 175, 239, 0.7); }
+  }
+  #optionsContainer {
+    display: flex;
+    flex-wrap: wrap; /* Pro přehlednější zobrazení na menších obrazovkách */
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .option-btn {
+    padding: 10px 18px;
+    background-color: var(--color-button-bg);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Fira Code', monospace;
+    font-weight: bold;
+    color: var(--color-text);
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+    white-space: pre;
+    font-size: 0.95em;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  }
+  .option-btn:not(.selected):hover {
+    background-color: var(--color-button-hover);
+    transform: translateY(-2px);
+  }
+  .option-btn.selected {
+    background-color: var(--color-highlight);
+    color: var(--color-bg);
+    box-shadow: 0 0 12px rgba(97, 175, 239, 0.6);
+    transform: scale(1.05);
+  }
+  #actionContainer {
+      min-height: 50px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+  }
+  #nextPhaseBtn {
+      padding: 12px 25px;
+      background-color: var(--color-correct);
+      color: var(--color-bg);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.1em;
+      transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+      display: none; /* Skryto, dokud JS nespustí 'block' */
+      box-shadow: 0 4px 8px rgba(0,255,0,0.3);
+  }
+  #nextPhaseBtn:hover {
+      background-color: #5cb85c;
+      transform: translateY(-2px);
+  }
+  #statusMessage {
+    color: var(--color-highlight); /* Defaultně modrá pro informace */
+    font-weight: bold;
+    min-height: 25px;
+    margin-bottom: 15px;
+    font-size: 1.05em;
+  }
+  #statusMessage.status-error {
+      color: var(--color-error);
+  }
+  #statusMessage.status-correct {
+      color: var(--color-correct);
+  }
+  #phaseLives {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 1.1em;
+    border-bottom: 1px solid rgba(var(--color-text), 0.2);
+    padding-bottom: 10px;
+  }
+  #livesDisplay {
+      color: var(--color-life);
+      font-size: 1.4em;
+  }
+  .life-icon {
+      margin-left: 6px;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+      display: inline-block;
+      transform: scale(1);
+      transition: transform 0.3s ease-out, opacity 0.5s ease-out;
+  }
+  .life-icon.lost {
+      opacity: 0.3;
+      transform: scale(0.8);
+  }
+  /* Modals */
+  .modal-overlay {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    backdrop-filter: blur(5px); /* Rozostření pozadí */
+    animation: fadeIn 0.3s ease-out;
+  }
+  .modal-content {
+    background-color: var(--color-panel);
+    padding: 30px 40px;
+    border-radius: 10px;
+    border: 2px solid var(--color-highlight);
+    max-width: 450px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 0 25px rgba(97, 175, 239, 0.6);
+    animation: slideIn 0.4s ease-out;
+    color: var(--color-text);
+  }
+  .modal-content h3 {
+      color: var(--color-highlight);
+      font-size: 2em;
+      margin-top: 0;
+      margin-bottom: 20px;
+  }
+  .modal-content p {
+      font-size: 1.1em;
+      line-height: 1.6;
+      margin-bottom: 25px;
+  }
+  .modal-content button {
+      padding: 12px 25px;
+      background-color: var(--color-correct);
+      color: var(--color-bg);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.1em;
+      transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+      box-shadow: 0 4px 10px rgba(0,255,0,0.4);
+  }
+  .modal-content button:hover {
+      background-color: #5cb85c;
+      transform: translateY(-2px);
+  }
+  #gameOverModal .modal-content button {
+      background-color: var(--color-error);
+      box-shadow: 0 4px 10px rgba(244, 67, 54, 0.4);
+  }
+  #gameOverModal .modal-content button:hover {
+      background-color: #d32f2f;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideIn {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div id="introModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Minihra I: C++ Code Constructor</h3>
+        <p><strong>Cíl:</strong> Oprav 6 syntaktických chyb v C++ kódu. Máš 3 životy!</p>
+        <p><strong>Jak hrát:</strong>
+            <br>1. Nejprve **vyber správný kódový prvek** kliknutím na jedno z tlačítek dole.
+            <br>2. Poté **klikni na blikající místo** (placeholder) v kódu, kam prvek patří.
+        </p>
+        <p>Za každou chybu ztrácíš **jeden život**. Jakmile kód správně opravíš, klikni na **"Další Fáze"**.</p>
+        <button onclick="startGame()">Start Hry</button>
+    </div>
+</div>
+
+<div id="gameOverModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h3>Životy vyčerpány!</h3>
+        <p>Kód se nekompiloval. Zkus to znovu a vylepši své C++ znalosti!</p>
+        <button onclick="resetGame()">Zkusit Znovu</button>
+    </div>
+</div>
+
+<div id="winModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h3>ÚSPĚCH! Gratuluji!</h3>
+        <p>Všech 6 kódových fází kompilováno bez chyb. Jsi mistr C++ syntaxe!</p>
+        <button onclick="resetGame()">Hrát Znovu</button>
+    </div>
+</div>
+
+<div id="gameContainer">
+    <h2>C++ Syntax Constructor</h2>
+    <div id="phaseLives">
+        <div>Fáze: <span id="currentPhase">0</span> / <span id="totalPhases">6</span></div>
+        <div id="livesDisplay"></div>
+    </div>
+    <div id="codeDisplay"></div>
+    <div id="optionsContainer"></div>
+    <div id="actionContainer">
+        <button id="nextPhaseBtn" onclick="nextPhase()">Další Fáze</button>
+    </div>
+    <div id="statusMessage"></div>
+</div>
+
+<script>
+// === DOM Elements & Constants ===
+const codeDisplay = document.getElementById('codeDisplay');
+const optionsContainer = document.getElementById('optionsContainer');
+const currentPhaseEl = document.getElementById('currentPhase');
+const totalPhasesEl = document.getElementById('totalPhases');
+const livesDisplayEl = document.getElementById('livesDisplay');
+const introModal = document.getElementById('introModal');
+const gameOverModal = document.getElementById('gameOverModal');
+const winModal = document.getElementById('winModal');
+const nextPhaseBtn = document.getElementById('nextPhaseBtn');
+const statusMessageEl = document.getElementById('statusMessage');
+
+const TOTAL_PHASES = 6;
+const INITIAL_LIVES = 3;
+const STATUS_OK_COLOR = "var(--color-highlight)"; // Používáme highlight pro obecné zprávy
+const STATUS_CORRECT_COLOR = "var(--color-correct)";
+const STATUS_ERROR_COLOR = "var(--color-error)";
+
+// === Herní Proměnné ===
+let lives = INITIAL_LIVES;
+let currentQuestion = null;
+let selectedOption = null;
+let gameActive = false;
+let availableQuestions = [];
+let phaseCounter = 0;
+let currentPlaceholder = null; // Ukládáme referenci na aktuální placeholder
+
+// Nastavení UI na výchozí hodnoty
+totalPhasesEl.textContent = TOTAL_PHASES;
+
+// === Definice Otázek ===
+function getQuestionSet() {
+    return [
+        { 
+            code: `int main() {<br>  int age = 20<span class="placeholder"></span><br>  return 0;<br>}`, 
+            correct: ';', 
+            options: [';', '.', ')', ','] 
+        },
+        { 
+            code: `<span class="placeholder"></span> pi = 3.14159;<br>int main() {<br>  return 0;<br>}`, 
+            correct: 'double', 
+            options: ['int', 'float', 'string', 'double'] 
+        },
+        { 
+            code: `int main() {<br>  std::cout <span class="placeholder"></span> "Hello, World!" << std::endl;<br>  return 0;<br>}`, 
+            correct: '<<', 
+            options: ['>>', '<<', '.=', '->'] 
+        },
+        { 
+            code: `void setup() {<br>  // Some code<br>}<br><span class="placeholder"></span> main() {<br>  setup();<br>  return 0;<br>}`, 
+            correct: 'int', 
+            options: ['void', 'def', 'int', 'func'] 
+        },
+        { 
+            code: `int main() {<br>  std::string greeting = <span class="placeholder"></span>"Ahoj světe!";<br>  return 0;<br>}`, 
+            correct: '"', 
+            options: ["'", '"', '`', '{'] 
+        },
+        { 
+            code: `if (score < 100)<span class="placeholder"></span> {<br>  std::cout << "Vyhrál jsi!";<br>}<br>else {<br>  std::cout << "Prohrál jsi.";<br>}`, 
+            correct: '', // Prázdný řetězec, protože chybí pouze závorka
+            options: ['{', ')', ']', ';'] 
+        },
+        { 
+            code: `void printNumber(<span class="placeholder"></span> num) {<br>  std::cout << num << std::endl;<br>}<br>int main() {<br>  printNumber(5);<br>  return 0;<br>}`, 
+            correct: 'int', 
+            options: ['void', 'int', 'char', 'bool'] 
+        },
+        { 
+            code: `int calculateSum(int a, int b)<span class="placeholder"></span><br>  return a + b;<br>}<br>int main() {<br>  int result = calculateSum(10, 20);<br>  return 0;<br>}`, 
+            correct: '{', 
+            options: [';', '{', '(', '['] 
+        },
+        {
+            code: `#include <iostream><br><span class="placeholder"></span> namespace std;<br>int main() {<br>  cout << "Namespace test" << endl;<br>  return 0;<br>}`,
+            correct: 'using',
+            options: ['include', 'import', 'use', 'using']
+        },
+        {
+            code: `class Car <span class="placeholder"></span> {<br>public:<br>  int speed;<br>};<br>int main() { return 0; }`,
+            correct: '{',
+            options: [';', '(', '[', '{']
+        },
+        {
+            code: `int main() {<br>  for (int i = 0; <span class="placeholder"></span> i++) {<br>    // loop<br>  }<br>  return 0;<br>}`,
+            correct: 'i < 5;',
+            options: ['i < 5', 'i < 5;', 'i is 5;', 'i = 5;']
+        }
+    ];
+}
+
+// === Základní Utility ===
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function updateStatus(message, color = STATUS_OK_COLOR, addClass = '') {
+    statusMessageEl.textContent = message;
+    statusMessageEl.style.color = color;
+    statusMessageEl.className = ''; // Reset classes
+    if (addClass) {
+        statusMessageEl.classList.add(addClass);
+    }
+}
+
+// === Hlavní Herní Logika ===
+
+function loadQuestion() {
+    if (phaseCounter >= TOTAL_PHASES) {
+        winGame();
+        return;
+    }
+    
+    // Nová fáze
+    phaseCounter++;
+    updatePhaseLives();
+    
+    // Načtení další otázky z fronty
+    if (availableQuestions.length > 0) {
+      currentQuestion = availableQuestions.shift(); 
+    } else {
+      // Pokud se dostaneme sem a AVAILABLE_QUESTIONS jsou prázdné před TOTAL_PHASES, něco je špatně
+      winGame(); // V případě neočekávaného stavu ukončíme hru výhrou
+      return; 
+    }
+    
+    // Skrytí tlačítka "Další Fáze"
+    nextPhaseBtn.style.display = 'none';
+    
+    // Zobrazení kódu s placeholderem
+    codeDisplay.innerHTML = `<div class="code-line">${currentQuestion.code}</div>`;
+    currentPlaceholder = codeDisplay.querySelector('.placeholder'); // Uložit referenci
+
+    // Zobrazení možností
+    optionsContainer.innerHTML = '';
+    const shuffledOptions = [...currentQuestion.options]; // Vytvoříme kopii pro zamíchání
+    shuffle(shuffledOptions);
+    shuffledOptions.forEach(option => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.innerHTML = escapeHtml(option); // Bezpečné zobrazení HTML entit
+        btn.onclick = () => selectOption(btn, option);
+        optionsContainer.appendChild(btn);
+    });
+
+    selectedOption = null;
+    document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+    updateStatus(`Fáze ${phaseCounter}: 1. Vyber prvek. 2. Klikni do kódu.`);
+}
+
+function selectOption(btn, option) {
+    if (!gameActive || nextPhaseBtn.style.display !== 'none') return;
+
+    document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+    
+    btn.classList.add('selected');
+    selectedOption = option;
+    updateStatus(`Vybráno: ${escapeHtml(option)}. Nyní klikni na blikající místo v kódu.`, STATUS_OK_COLOR);
+}
+
+function handlePlaceholderClick(targetElement) {
+    if (!gameActive || nextPhaseBtn.style.display !== 'none' || targetElement !== currentPlaceholder) return;
+
+    if (!selectedOption) {
+        updateStatus('Nejdříve musíš vybrat prvek z tlačítek dole!', STATUS_ERROR_COLOR, 'status-error');
+        return;
+    }
+
+    if (selectedOption === currentQuestion.correct) {
+        // SPRÁVNĚ
+        
+        // Vizuální zpětná vazba a oprava kódu
+        targetElement.classList.add('correct-flash'); // Zeleně zablýskne
+        setTimeout(() => {
+            targetElement.outerHTML = `<span style="color:var(--color-highlight);">${escapeHtml(selectedOption)}</span>`;
+            updateStatus('SPRÁVNĚ! Kód kompiluje. Pokračuj na "Další Fáze".', STATUS_CORRECT_COLOR, 'status-correct');
+            nextPhaseBtn.style.display = 'block'; // Zobrazit tlačítko Další Fáze
+        }, 300); // Necháme chvíli zablýsknout
+        
+    } else {
+        // ŠPATNĚ
+        lives--;
+        updatePhaseLives();
+        
+        targetElement.classList.add('error-flash'); // Červeně zablýskne
+        setTimeout(() => {
+            targetElement.classList.remove('error-flash');
+            // Znovu nastavit animaci pulsu
+            targetElement.style.animation = ''; // Reset pro znovuspuštění animace
+            void targetElement.offsetWidth; // Trigger reflow
+            targetElement.style.animation = 'pulse 1.2s infinite alternate';
+        }, 500);
+        
+
+        if (lives <= 0) {
+             gameOver();
+             return;
+        }
+
+        updateStatus(`CHYBA: Špatný prvek! -1 Život. Zbývá ${lives} životů. Zkus to znovu s jiným prvkem.`, STATUS_ERROR_COLOR, 'status-error');
+        
+        // Reset výběru
+        selectedOption = null;
+        document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+    }
+}
+
+window.nextPhase = function() {
+    if (!gameActive) return;
+    loadQuestion();
+}
+
+// === Správa Stavů a UI ===
+
+function updatePhaseLives() {
+    currentPhaseEl.textContent = phaseCounter;
+    
+    // Vizuální zobrazení životů
+    livesDisplayEl.innerHTML = '';
+    for(let i=1; i<=INITIAL_LIVES; i++){
+        const span = document.createElement('span');
+        span.className = 'life-icon';
+        span.innerHTML = '&#x2764;'; // Srdce
+        if (i > lives) {
+            span.classList.add('lost');
+        }
+        livesDisplayEl.appendChild(span);
+    }
+}
+
+function gameOver() {
+    gameActive = false;
+    nextPhaseBtn.style.display = 'none';
+    gameOverModal.style.display = 'flex';
+    updateStatus('Konec hry!', STATUS_ERROR_COLOR, 'status-error');
+}
+
+function winGame() {
+    gameActive = false;
+    nextPhaseBtn.style.display = 'none';
+    winModal.style.display = 'flex';
+    updateStatus('Gratuluji! Hra dokončena.', STATUS_CORRECT_COLOR, 'status-correct');
+}
+
+window.resetGame = function() {
+    lives = INITIAL_LIVES;
+    phaseCounter = 0;
+    gameActive = true;
+    
+    // Příprava otázek: Zamícháme a vybereme jen prvních TOTAL_PHASES
+    availableQuestions = getQuestionSet();
+    shuffle(availableQuestions);
+    availableQuestions = availableQuestions.slice(0, TOTAL_PHASES);
+    
+    updatePhaseLives();
+    gameOverModal.style.display = 'none';
+    winModal.style.display = 'none';
+    
+    // Začínáme Fázi 1
+    loadQuestion();
+}
+
+window.startGame = function() {
+    introModal.style.display = 'none';
+    window.resetGame();
+}
+
+// Funkce pro bezpečné escapování HTML entit
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// === Event Listeners ===
+
+codeDisplay.addEventListener('click', (e) => {
+    // Zajistíme, že klikneme POUZE na aktuální placeholder
+    if (e.target.classList.contains('placeholder') && e.target === currentPlaceholder) {
+        handlePlaceholderClick(e.target);
+    } else if (e.target.classList.contains('placeholder') && e.target !== currentPlaceholder) {
+        updateStatus('Klikni na blikající červené místo!', STATUS_ERROR_COLOR, 'status-error');
+    }
+});
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+    updatePhaseLives(); // Inicializovat zobrazení životů a fáze
+    // Intro modal se zobrazí automaticky, protože je výchozí display flex
+});
+</script>
+</body>
+</html>

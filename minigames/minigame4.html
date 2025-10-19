@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Firewall: Live Analysis</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+  :root {
+    --color-bg: #1e1e1e; --color-panel: #2d2d30; --color-text: #d4d4d4;
+    --color-blue: #569cd6; --color-green: #608b4e; --color-yellow: #dcdcaa;
+    --color-red: #f44747; --color-purple: #c586c0; --color-grey: #808080;
+    --color-orange: #ce9178;
+  }
+
+  body {
+    background-color: var(--color-bg); color: var(--color-text);
+    font-family: 'Fira Code', monospace; display: flex;
+    justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;
+    box-sizing: border-box;
+  }
+
+  #gameContainer {
+    background-color: var(--color-panel); padding: 25px; border-radius: 8px;
+    border: 1px solid #444; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    width: 800px; max-width: 100%; text-align: center;
+  }
+
+  h1 { color: var(--color-blue); margin: 0 0 20px 0; }
+
+  #statsBar {
+    display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 1.2em;
+    flex-wrap: wrap; gap: 10px;
+  }
+  #integrityDisplay { font-weight: bold; }
+
+  #terminalContainer {
+    background-color: #191919; border-radius: 6px;
+    height: 300px; padding: 10px; position: relative;
+    overflow: hidden; border: 1px solid #555; margin-bottom: 20px;
+  }
+  
+  #breachLine {
+      position: absolute; top: 10px; left: 0; width: 100%;
+      border-top: 2px dashed var(--color-red); box-shadow: 0 0 10px var(--color-red);
+      text-align: center; color: var(--color-red); font-size: 0.8em; z-index: 10;
+  }
+  #breachLine::after { content: 'SYSTEM BREACH LINE'; background: #191919; padding: 0 10px; }
+
+  .packet {
+    position: absolute; bottom: 10px; left: 10px; right: 10px;
+    padding: 10px; border-radius: 4px; font-size: 1.1em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none;
+    transition-property: transform; transition-timing-function: linear;
+  }
+  .packet-MALWARE { background-color: rgba(199, 120, 221, 0.2); border-left: 4px solid var(--color-purple); }
+  .packet-PHISHING { background-color: rgba(220, 220, 170, 0.2); border-left: 4px solid var(--color-yellow); }
+  .packet-DATALOSS { background-color: rgba(86, 156, 214, 0.2); border-left: 4px solid var(--color-blue); }
+  .packet-NORMAL { background-color: rgba(128, 128, 128, 0.2); border-left: 4px solid var(--color-grey); color: #aaa; }
+  
+  .packet.blocked { transition: all 0.5s; opacity: 0; transform: scale(0.8); }
+  .packet.breached { background-color: var(--color-red); animation: shake 0.3s; }
+  
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-2px, 0, 0); } 20%, 80% { transform: translate3d(4px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-6px, 0, 0); } 40%, 60% { transform: translate3d(6px, 0, 0); }
+  }
+
+  #helperLog {
+    background-color: #222; border-left: 4px solid var(--color-yellow);
+    padding: 15px; margin-bottom: 25px; text-align: left; border-radius: 4px;
+    min-height: 80px; transition: border-color 0.5s;
+  }
+  #helperLog.inactive-log { border-left-color: var(--color-grey); }
+  #helperLog h4 { margin: 0 0 10px 0; color: var(--color-yellow); transition: color 0.5s; }
+  #helperLog.inactive-log h4 { color: var(--color-grey); }
+  #helperLog p { margin: 0; line-height: 1.6; }
+
+  #actionsContainer {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;
+  }
+  
+  .action-btn {
+    padding: 15px; border-radius: 6px; border: 2px solid;
+    font-size: 1.1em; font-weight: bold; font-family: 'Fira Code', monospace;
+    cursor: pointer; transition: all 0.2s; background: transparent;
+  }
+  .action-btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+  .action-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  #btn-quarantine { border-color: var(--color-purple); color: var(--color-purple); }
+  #btn-block-phish { border-color: var(--color-yellow); color: var(--color-yellow); }
+  #btn-filter-data { border-color: var(--color-blue); color: var(--color-blue); }
+  #btn-ignore { border-color: var(--color-grey); color: var(--color-grey); }
+  
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.8); display: flex;
+    justify-content: center; align-items: center; z-index: 100;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out;
+  }
+  .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+  .modal-content {
+    background-color: var(--color-panel); padding: 30px 40px;
+    border-radius: 10px; border: 2px solid var(--color-blue);
+    max-width: 500px; width: 90%; text-align: center;
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.8);
+  }
+  .modal-content h3 { color: var(--color-blue); font-size: 2em; margin: 0 0 20px 0; }
+  .modal-content p { font-size: 1.1em; line-height: 1.6; margin-bottom: 25px; }
+  .modal-content button {
+    padding: 12px 25px; background-color: var(--color-green); color: #fff;
+    border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.1em;
+    transition: background-color 0.2s, transform 0.2s;
+  }
+  .modal-content button:hover { background-color: #79b162; transform: scale(1.05); }
+  #gameOverModal .modal-content h3 { color: var(--color-red); }
+
+</style>
+</head>
+<body>
+
+<div id="introModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Vítejte v Interactive Firewall!</h3>
+        <p><strong>Váš úkol:</strong> Analyzujte paket, který se pohybuje terminálem. Použijte správné pravidlo dříve, než dosáhne červené "breach" linie.</p>
+        <p><strong>Nápověda vám pomůže s prvními 5 pakety,</strong> pak už to bude na vás!</p>
+        <button id="startGameBtn">Spustit Analýzu</button>
+    </div>
+</div>
+
+<div id="gameOverModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>SYSTÉM PROLOMEN</h3>
+        <p>Integrita systému klesla na 0%. Je třeba zlepšit vaše rozhodovací schopnosti.</p>
+        <p>Finální skóre: <strong id="finalScore">0</strong> | Dosažená úroveň: <strong id="finalLevel">1</strong></p>
+        <button id="restartGameBtn">Restartovat Simulaci</button>
+    </div>
+</div>
+
+<div id="gameContainer">
+    <h1>Interactive Firewall</h1>
+
+    <div id="statsBar">
+        <div>Úroveň: <span id="levelDisplay">1</span></div>
+        <div>Zabezpečeno: <span id="scoreDisplay">0</span></div>
+        <div>Integrita Systému: <span id="integrityDisplay">100</span>%</div>
+    </div>
+
+    <div id="terminalContainer">
+        <div id="breachLine"></div>
+    </div>
+    
+    <div id="helperLog">
+        <h4>Nápověda Firewallu</h4>
+        <p>Klikněte na "Spustit Analýzu" v úvodním okně.</p>
+    </div>
+
+    <div id="actionsContainer">
+        <button id="btn-quarantine" class="action-btn" data-action="QUARANTINE" disabled>Karanténa [Malware]</button>
+        <button id="btn-block-phish" class="action-btn" data-action="BLOCK_PHISHING" disabled>Blokovat [Phishing]</button>
+        <button id="btn-filter-data" class="action-btn" data-action="FILTER_DATALOSS" disabled>Filtrovat [Únik Dat]</button>
+        <button id="btn-ignore" class="action-btn" data-action="IGNORE" disabled>Ignorovat [Normální provoz]</button>
+    </div>
+</div>
+
+<script>
+// === DOM Elements ===
+const scoreDisplay = document.getElementById('scoreDisplay');
+const levelDisplay = document.getElementById('levelDisplay');
+const integrityDisplay = document.getElementById('integrityDisplay');
+const terminal = document.getElementById('terminalContainer');
+const helperLog = document.getElementById('helperLog');
+const helperLogTitle = helperLog.querySelector('h4');
+const helperLogText = helperLog.querySelector('p');
+const actionButtons = document.querySelectorAll('.action-btn');
+const introModal = document.getElementById('introModal');
+const gameOverModal = document.getElementById('gameOverModal');
+const finalScore = document.getElementById('finalScore');
+const finalLevel = document.getElementById('finalLevel');
+const startGameBtn = document.getElementById('startGameBtn');
+const restartGameBtn = document.getElementById('restartGameBtn');
+
+// === Game Constants & Definitions ===
+const MAX_INTEGRITY = 100;
+const PACKETS_PER_LEVEL = 5;
+const BASE_PACKET_SPEED = 12;
+const HELPER_ACTIVE_UNTIL_PACKET_COUNT = 5; // Nápověda aktivní pro prvních 5 paketů
+
+const THREAT_DEFINITIONS = {
+    MALWARE: { name: 'Malware', action: 'QUARANTINE', sigs: ['Trojan.Win32', 'Worm.Generic', 'Ransom.Crypt'], hint: 'Signatury jako "Trojan", "Worm" nebo "Ransom" značí škodlivý software. Takové soubory je třeba izolovat v karanténě.', explanation: 'Karanténa izoluje nebezpečný soubor od zbytku systému, aby nemohl napáchat škody.'},
+    PHISHING: { name: 'Phishing', action: 'BLOCK_PHISHING', sigs: ['login_attempt.html', 'verify_account.php', 'paypal-secure.info'], hint: 'Pakety obsahující názvy jako "login", "verify" nebo napodobující známé služby jsou podezřelé z pokusu o krádež údajů (phishing).', explanation: 'Blokování phishingu zabraňuje uživateli dostat se na podvodnou stránku a vyplnit své citlivé údaje.'},
+    DATALOSS: { name: 'Únik Dat', action: 'FILTER_DATALOSS', sigs: ['CreditCards.zip', 'user_database.sql', 'customer_data.xls'], hint: 'Pokud paket obsahuje soubory s citlivými daty (databáze, kreditní karty), může se jednat o pokus o jejich krádež.', explanation: 'Filtrování dat zabraňuje odeslání citlivých informací mimo zabezpečenou síť.'},
+    NORMAL: { name: 'Normální provoz', action: 'IGNORE', sigs: ['image.jpg', 'styles.css', 'api/data.json'], hint: 'Běžné soubory jako obrázky, styly nebo data pro webovou stránku jsou obvykle bezpečné. Není třeba je blokovat.', explanation: 'Správný firewall nesmí blokovat legitimní provoz. Rozpoznání bezpečných paketů je klíčové.'}
+};
+
+// === Game State ===
+let gameActive = false;
+let score = 0;
+let packetsShownCounter = 0;
+let currentLevel = 1;
+let systemIntegrity = MAX_INTEGRITY;
+let currentPacket = null;
+
+// === Game Functions ===
+function init() {
+    introModal.classList.add('visible');
+}
+
+function startGame() {
+    gameActive = true;
+    score = 0;
+    packetsShownCounter = 0;
+    currentLevel = 1;
+    systemIntegrity = MAX_INTEGRITY;
+
+    introModal.classList.remove('visible');
+    gameOverModal.classList.remove('visible');
+    
+    actionButtons.forEach(btn => btn.disabled = false);
+    updateDisplay();
+    createNextPacket();
+}
+
+function createNextPacket() {
+    if (!gameActive || currentPacket) return;
+
+    if (score > 0 && score % PACKETS_PER_LEVEL === 0 && Math.floor(score / PACKETS_PER_LEVEL) + 1 > currentLevel) {
+        levelUp();
+        setTimeout(spawnPacket, 2500);
+    } else {
+        spawnPacket();
+    }
+}
+
+function spawnPacket() {
+    packetsShownCounter++;
+    const typeKey = Object.keys(THREAT_DEFINITIONS)[Math.floor(Math.random() * 4)];
+    const typeData = THREAT_DEFINITIONS[typeKey];
+    const sig = typeData.sigs[Math.floor(Math.random() * typeData.sigs.length)];
+    const srcIp = `1${getRandomInt(0,9)}${getRandomInt(0,9)}.${getRandomInt(1,254)}.${getRandomInt(1,254)}.${getRandomInt(1,254)}`;
+    
+    const packetElement = document.createElement('div');
+    packetElement.classList.add('packet', `packet-${typeKey}`);
+    packetElement.innerHTML = `<span style="color:var(--color-grey);">[SRC:${srcIp}]</span> <span style="color:var(--color-yellow);">[PAYLOAD:${sig}]</span>`;
+    
+    const packetSpeed = Math.max(5, BASE_PACKET_SPEED - (currentLevel * 0.75));
+    packetElement.style.transitionDuration = `${packetSpeed}s`;
+    
+    const breachTimeout = setTimeout(() => handleBreach(), packetSpeed * 1000);
+
+    currentPacket = {
+        element: packetElement,
+        type: typeKey,
+        action: typeData.action,
+        timeout: breachTimeout
+    };
+    
+    terminal.appendChild(packetElement);
+    setTimeout(() => { packetElement.style.transform = `translateY(-${terminal.clientHeight + 20}px)`; }, 10);
+
+    updateHelperLog(typeData.hint);
+    actionButtons.forEach(btn => btn.disabled = false);
+}
+
+function updateHelperLog(hint) {
+    if (packetsShownCounter <= HELPER_ACTIVE_UNTIL_PACKET_COUNT) {
+        helperLog.classList.remove('inactive-log');
+        helperLogTitle.textContent = `Nápověda Firewallu [Paket ${packetsShownCounter}/${HELPER_ACTIVE_UNTIL_PACKET_COUNT}]`;
+        helperLogText.textContent = hint;
+    } else {
+        helperLog.classList.add('inactive-log');
+        helperLogTitle.textContent = "Log Systému";
+        if (packetsShownCounter === HELPER_ACTIVE_UNTIL_PACKET_COUNT + 1) {
+             helperLogText.textContent = "Tréninková fáze skončila. Nyní je to na vás!";
+        } else {
+             helperLogText.textContent = "Analyzujte signaturu a zdrojovou IP adresu.";
+        }
+    }
+}
+
+function handleAction(chosenAction) {
+    if (!currentPacket || !gameActive) return;
+
+    const packet = currentPacket;
+    currentPacket = null;
+    
+    clearTimeout(packet.timeout);
+    actionButtons.forEach(btn => btn.disabled = true);
+    
+    const currentTransform = window.getComputedStyle(packet.element).transform;
+    packet.element.style.transform = currentTransform;
+    packet.element.style.transitionDuration = '0.5s';
+
+    if (chosenAction === packet.action) {
+        score++;
+        systemIntegrity = Math.min(MAX_INTEGRITY, systemIntegrity + 5);
+        helperLogText.textContent = `SPRÁVNĚ! ${THREAT_DEFINITIONS[packet.type].explanation}`;
+        packet.element.classList.add('blocked');
+    } else {
+        systemIntegrity = Math.max(0, systemIntegrity - 20);
+        helperLogText.textContent = `CHYBA! Toto byl ${THREAT_DEFINITIONS[packet.type].name}. ${THREAT_DEFINITIONS[packet.type].explanation}`;
+        packet.element.classList.add('breached');
+    }
+
+    updateDisplay();
+    
+    setTimeout(() => {
+        packet.element.remove();
+        if (systemIntegrity <= 0) endGame();
+        else createNextPacket();
+    }, 4000);
+}
+
+function handleBreach() {
+    if (!currentPacket) return;
+    const packet = currentPacket;
+    currentPacket = null;
+
+    systemIntegrity = Math.max(0, systemIntegrity - 25);
+    helperLogText.textContent = `PRŮNIK! Paket typu ${THREAT_DEFINITIONS[packet.type].name} proklouzl obranou. Musíte být rychlejší!`;
+    packet.element.classList.add('breached');
+
+    updateDisplay();
+
+    setTimeout(() => {
+        packet.element.remove();
+        if (systemIntegrity <= 0) endGame();
+        else createNextPacket();
+    }, 3500);
+}
+
+function levelUp() {
+    currentLevel++;
+    helperLogText.textContent = `POSTUP NA ÚROVEŇ ${currentLevel}! Hrozby se budou pohybovat rychleji!`;
+    updateDisplay();
+}
+
+function endGame() {
+    gameActive = false;
+    if (currentPacket) {
+        clearTimeout(currentPacket.timeout);
+        currentPacket.element.remove();
+        currentPacket = null;
+    }
+    
+    finalScore.textContent = score;
+    finalLevel.textContent = currentLevel;
+    gameOverModal.classList.add('visible');
+    actionButtons.forEach(btn => btn.disabled = true);
+}
+
+function updateDisplay() {
+    scoreDisplay.textContent = score;
+    levelDisplay.textContent = currentLevel;
+    integrityDisplay.textContent = `${Math.round(systemIntegrity)}%`;
+    integrityDisplay.style.color = systemIntegrity < 30 ? 'var(--color-red)' : systemIntegrity < 60 ? 'var(--color-orange)' : 'var(--color-green)';
+}
+
+function getRandomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+// === Event Listeners ===
+startGameBtn.addEventListener('click', startGame);
+restartGameBtn.addEventListener('click', startGame);
+actionButtons.forEach(btn => btn.addEventListener('click', () => handleAction(btn.dataset.action)));
+
+init();
+
+</script>
+</body>
+</html>
