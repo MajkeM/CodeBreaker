@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot Logic Grid</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+  :root {
+    --color-bg: #1e1e1e; --color-panel-bg: #2d2d30; --color-text: #d4d4d4;
+    --color-blue: #569cd6; --color-green: #608b4e; --color-yellow: #dcdcaa;
+    --color-red: #f44747; --color-grey: #808080;
+    --color-wall: #444; --color-player: #ce9178; --grid-size: 10;
+  }
+
+  body {
+    background-color: var(--color-bg); color: var(--color-text);
+    font-family: 'Fira Code', monospace; display: flex;
+    justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;
+  }
+
+  #gameContainer {
+    display: grid; grid-template-columns: 500px 1fr; gap: 30px;
+    background-color: var(--color-panel-bg); padding: 25px; border-radius: 8px;
+    border: 1px solid #444; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    width: 950px; max-width: 100%;
+  }
+
+  #leftPanel h2, #rightPanel h2 { margin: 0 0 15px 0; color: var(--color-blue); }
+
+  /* Grid Area */
+  #gridContainer {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-size), 1fr);
+    grid-template-rows: repeat(var(--grid-size), 1fr);
+    width: 500px; height: 500px; background-color: #191919;
+    border: 2px solid var(--color-grey);
+    position: relative;
+  }
+  .grid-cell { background-color: transparent; border: 1px solid #3a3a3a; }
+  .grid-cell.wall { background-color: var(--color-wall); }
+  .grid-cell.start { background-color: rgba(86, 156, 214, 0.3); }
+  .grid-cell.goal { background-color: rgba(96, 139, 78, 0.4); }
+  #player {
+    position: absolute; width: calc(100% / var(--grid-size)); height: calc(100% / var(--grid-size));
+    background-color: var(--color-player);
+    transition: all 0.3s ease-in-out;
+    display: flex; justify-content: center; align-items: center; font-size: 1.8em;
+    color: #1e1e1e; font-weight: bold;
+    border-radius: 20%;
+  }
+  .player-crashed { background-color: var(--color-red); transform: scale(1.1); }
+  
+  /* Right Panel: Controls */
+  #controls h3 { margin-top: 0; }
+  #commandPalette { display: flex; gap: 10px; margin-bottom: 20px; }
+  .cmd-btn {
+      flex-grow: 1; padding: 12px; font-size: 1em; background-color: #3e3e42;
+      border: 1px solid var(--color-grey); border-radius: 4px; color: var(--color-text);
+      cursor: pointer; transition: background-color 0.2s;
+  }
+  .cmd-btn:hover:not(:disabled) { background-color: #555; }
+  .cmd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #sequenceContainer {
+      background-color: #191919; min-height: 200px; border-radius: 4px;
+      padding: 10px; margin-bottom: 20px;
+  }
+  #sequenceList { display: flex; flex-wrap: wrap; gap: 8px; }
+  .seq-block {
+      width: 30px; height: 30px;
+      display: flex; justify-content: center; align-items: center;
+      background-color: var(--color-blue); color: var(--color-bg);
+      border-radius: 4px; font-size: 1.2em; font-weight: bold;
+      transition: background-color 0.2s;
+  }
+  .seq-block.empty { background-color: #333; }
+  .seq-block.active { background-color: var(--color-yellow); }
+  
+  #simulationControls { display: flex; gap: 10px; width: 100%; }
+  #runBtn { background-color: var(--color-green); }
+  #resetBtn { background-color: var(--color-red); }
+  #runBtn, #resetBtn { color: #fff; border: none; flex-grow: 1; }
+  
+  #statusBar { margin-top: 20px; display: flex; justify-content: space-between; font-size: 1.2em; }
+  #livesDisplay { color: var(--color-red); }
+  #messageDisplay { margin-top: 15px; min-height: 2em; color: var(--color-yellow); font-weight: bold; }
+  
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.8); display: flex;
+    justify-content: center; align-items: center; z-index: 100;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out;
+  }
+  .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <div id="leftPanel">
+        <h2>Herní Plocha</h2>
+        <div id="gridContainer"></div>
+        <div id="messageDisplay">Sestavte sekvenci a spusťte simulaci!</div>
+    </div>
+    <div id="rightPanel">
+        <h2>Ovládací Panel</h2>
+        
+        <h3>Dostupné příkazy</h3>
+        <div id="commandPalette">
+            <button class="cmd-btn" data-command="FORWARD">Jdi Vpřed</button>
+            <button class="cmd-btn" data-command="LEFT">Otoč se Vlevo</button>
+            <button class="cmd-btn" data-command="RIGHT">Otoč se Vpravo</button>
+        </div>
+        
+        <h3>Vaše sekvence (<span id="sequenceLength">0</span>/<span id="sequenceMax">10</span>)</h3>
+        <div id="sequenceContainer">
+            <div id="sequenceList"></div>
+        </div>
+        
+        <div id="simulationControls">
+            <button id="resetBtn" class="cmd-btn">Vyčistit</button>
+            <button id="runBtn" class="cmd-btn">Spustit Simulaci</button>
+        </div>
+        
+        <div id="statusBar">
+            <div>Úroveň: <span id="levelDisplay">1</span></div>
+            <div>Životy: <span id="livesDisplay">❤️❤️❤️</span></div>
+        </div>
+    </div>
+</div>
+
+<div id="gameOverModal" class="modal-overlay">
+    <!-- Modal content generated by JS -->
+</div>
+
+
+<script>
+// === DOM Elements ===
+const gridContainer = document.getElementById('gridContainer');
+const messageDisplay = document.getElementById('messageDisplay');
+const levelDisplay = document.getElementById('levelDisplay');
+const livesDisplay = document.getElementById('livesDisplay');
+const commandPalette = document.getElementById('commandPalette');
+const sequenceList = document.getElementById('sequenceList');
+const sequenceLengthEl = document.getElementById('sequenceLength');
+const sequenceMaxEl = document.getElementById('sequenceMax');
+const runBtn = document.getElementById('runBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+// === Game Data: Levels (10x10 grid) ===
+const LEVELS = [
+    {
+        grid: [ 'S........G' ],
+        start: {x:0, y:0, dir:1}, size: 10, maxSequence:30
+    },
+    {
+        grid: [
+            'S.........',
+            '#########.',
+            '..........',
+            '.#######.#',
+            '.#.....#.#',
+            '.#.###.#.#',
+            '.#.#...#.#',
+            '.#.#.###.#',
+            '..G......#',
+            '##########',
+        ],
+        start: {x:0, y:0, dir:2}, size: 10, maxSequence: 30
+    },
+    {
+        grid: [
+            'S.#...#...',
+            '.##.##.##.',
+            '..#...#..G',
+        ],
+        start: {x:0, y:0, dir:1}, size: 10, maxSequence: 30
+    }
+];
+
+// === Game State ===
+let currentLevel = 0;
+let lives = 3;
+let playerSequence = [];
+let isSimulating = false;
+
+// === Game Logic ===
+function init() {
+    loadLevel(currentLevel);
+
+    commandPalette.addEventListener('click', e => {
+        if(isSimulating || !e.target.dataset.command) return;
+        addCommandToSequence(e.target.dataset.command);
+    });
+
+    resetBtn.addEventListener('click', resetSequence);
+    runBtn.addEventListener('click', runSimulation);
+}
+
+function loadLevel(levelIndex) {
+    if (levelIndex >= LEVELS.length) {
+        winGame();
+        return;
+    }
+    const level = LEVELS[levelIndex];
+    
+    gridContainer.style.setProperty('--grid-size', level.size);
+    
+    gridContainer.innerHTML = '';
+    for (let y = 0; y < level.size; y++) {
+        for (let x = 0; x < level.size; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            const char = level.grid[y]?.[x] || '.';
+            if (char === '#') cell.classList.add('wall');
+            if (char === 'S') cell.classList.add('start');
+            if (char === 'G') cell.classList.add('goal');
+            gridContainer.appendChild(cell);
+        }
+    }
+    
+    const player = document.createElement('div');
+    player.id = 'player';
+    gridContainer.appendChild(player);
+    
+    resetSequence();
+    updateStats();
+    resetPlayer();
+    messageDisplay.textContent = `Úroveň ${levelIndex + 1}: Dostaňte šipku do cíle!`;
+    
+    // **OPRAVA: Znovu povolit všechna tlačítka při načtení nové úrovně.**
+    [runBtn, resetBtn, ...commandPalette.children].forEach(btn => btn.disabled = false);
+}
+
+function resetPlayer() {
+    const player = document.getElementById('player');
+    const level = LEVELS[currentLevel];
+    player.style.left = `${(level.start.x / level.size) * 100}%`;
+    player.style.top = `${(level.start.y / level.size) * 100}%`;
+    updatePlayerRotation(level.start.dir);
+    player.classList.remove('player-crashed');
+}
+
+function updatePlayerRotation(dir) {
+    // 0:up, 1:right, 2:down, 3:left
+    const rotations = {'0': '-90deg', '1': '0deg', '2': '90deg', '3': '180deg'};
+    const player = document.getElementById('player');
+    player.style.transform = `rotate(${rotations[dir]})`;
+    player.textContent = '▶';
+}
+
+function addCommandToSequence(command) {
+    if (playerSequence.length >= LEVELS[currentLevel].maxSequence) return;
+    playerSequence.push(command);
+    updateSequenceDisplay();
+}
+
+function resetSequence() {
+    playerSequence = [];
+    updateSequenceDisplay();
+}
+
+function updateSequenceDisplay() {
+    sequenceList.innerHTML = '';
+    const max = LEVELS[currentLevel].maxSequence;
+    for(let i=0; i<max; i++) {
+        const block = document.createElement('div');
+        block.className = 'seq-block';
+        if(i < playerSequence.length){
+            const command = playerSequence[i];
+            if (command === 'FORWARD') block.textContent = '↑';
+            if (command === 'LEFT') block.textContent = '↰';
+            if (command === 'RIGHT') block.textContent = '↱';
+        } else {
+            block.classList.add('empty');
+        }
+        sequenceList.appendChild(block);
+    }
+    sequenceLengthEl.textContent = playerSequence.length;
+    sequenceMaxEl.textContent = max;
+}
+
+function updateStats() {
+    levelDisplay.textContent = currentLevel + 1;
+    livesDisplay.textContent = '❤️'.repeat(lives);
+}
+
+async function runSimulation() {
+    if (isSimulating) return;
+    isSimulating = true;
+    [runBtn, resetBtn, ...commandPalette.children].forEach(btn => btn.disabled = true);
+    
+    const playerEl = document.getElementById('player');
+    const level = LEVELS[currentLevel];
+    let player = { ...level.start };
+
+    messageDisplay.textContent = "Spouštím simulaci...";
+    await sleep(500);
+
+    for (let i = 0; i < playerSequence.length; i++) {
+        const command = playerSequence[i];
+        const blockEl = sequenceList.children[i];
+        blockEl.classList.add('active');
+        
+        if (command === 'LEFT') {
+            player.dir = (player.dir + 3) % 4;
+            updatePlayerRotation(player.dir);
+        }
+        if (command === 'RIGHT') {
+            player.dir = (player.dir + 1) % 4;
+            updatePlayerRotation(player.dir);
+        }
+        if (command === 'FORWARD') {
+            const dx = [0, 1, 0, -1];
+            const dy = [-1, 0, 1, 0];
+            player.x += dx[player.dir];
+            player.y += dy[player.dir];
+
+            if (player.x < 0 || player.x >= level.size || player.y < 0 || player.y >= level.size || level.grid[player.y]?.[player.x] === '#') {
+                playerEl.classList.add('player-crashed');
+                await sleep(400);
+                blockEl.classList.remove('active');
+                handleFailure("Šipka narazila do zdi!");
+                return;
+            }
+            
+            playerEl.style.left = `${(player.x / level.size) * 100}%`;
+            playerEl.style.top = `${(player.y / level.size) * 100}%`;
+        }
+        await sleep(400);
+        blockEl.classList.remove('active');
+    }
+    
+    if (level.grid[player.y]?.[player.x] === 'G') {
+        handleSuccess();
+    } else {
+        handleFailure("Šipka nedorazila do cíle.");
+    }
+}
+
+function handleSuccess() {
+    messageDisplay.textContent = "Úspěch! Připravuji další úroveň...";
+    setTimeout(() => {
+        currentLevel++;
+        loadLevel(currentLevel);
+        isSimulating = false;
+    }, 2000);
+}
+
+function handleFailure(reason) {
+    lives--;
+    updateStats();
+    messageDisplay.textContent = `Neúspěch: ${reason} Ztrácíte život.`;
+    
+    if (lives <= 0) {
+        gameOver();
+        return;
+    }
+    
+    setTimeout(() => {
+        resetPlayer();
+        messageDisplay.textContent = "Zkuste to znovu. Sestavte novou sekvenci.";
+        isSimulating = false;
+        [runBtn, resetBtn, ...commandPalette.children].forEach(btn => btn.disabled = false);
+    }, 3000);
+}
+
+function winGame() {
+    gridContainer.innerHTML = '<h2 style="color:var(--color-green); text-align:center; align-self:center;">Gratulujeme! Všechny úrovně dokončeny!</h2>';
+    document.getElementById('rightPanel').style.display = 'none';
+    messageDisplay.textContent = 'Skvělá práce!';
+}
+
+function gameOver() {
+    messageDisplay.textContent = "Konec hry! Všechny životy vyčerpány.";
+    const modal = document.getElementById('gameOverModal');
+    modal.innerHTML = `<div style="background:var(--color-panel-bg); padding:30px; border-radius:8px; text-align:center;">
+        <h2 style="color:var(--color-red);">Konec hry</h2>
+        <p>Bohužel jste přišli o všechny životy.</p>
+        <button id="restartGameBtn" class="cmd-btn" style="background:var(--color-blue);color:#fff;">Hrát znovu</button>
+    </div>`;
+    modal.classList.add('visible');
+    modal.querySelector('#restartGameBtn').addEventListener('click', () => {
+        modal.classList.remove('visible');
+        currentLevel = 0;
+        lives = 3;
+        init();
+    });
+    isSimulating = false;
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// === Initial Call ===
+init();
+</script>
+</body>
+</html>
