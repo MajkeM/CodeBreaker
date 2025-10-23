@@ -26,6 +26,11 @@ k.scene("loading", () => {
   k.loadSprite("pozadi_chodba", "../assets/room.png");
   k.loadSprite("terminal", "../assets/mac.png");
   k.loadSprite("neo_postava", "../assets/main-char.png");
+  k.loadSprite("batoh", "../assets/backpack.png");
+  k.loadSprite("Marek", "../assets/marek.png");
+  k.loadSprite("VchodDoSkoly", "../assets/vchod_skoly.png");
+  k.loadSprite("třída_pc", "../assets/třída_pc.png");
+  k.loadSprite("teacher", "../assets/Teacher.png");
   k.onLoad(() => {
     k.go("start");
   });

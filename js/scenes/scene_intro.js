@@ -35,11 +35,13 @@ k.scene("neo_room", (state = { hasBag: false, hasClothes: false }) => {
     objects: [
       {
         name: "Batoh",
+        sprite: "batoh",
         message: state.hasBag ? "Tady už mám všechno." : "Sbaleno...",
         posX: 0.2,
         posY: 0.6,
-        scaleX: 120,
-        scaleY: 150,
+        scaleX: 50,
+        scaleY: 50,
+        scale: 0.1,
         nextScene: "neo_room",
         args: { hasBag: true, hasClothes: state.hasClothes },
       },
