@@ -40,8 +40,8 @@ k.scene("neo_room", (state = { hasBag: false, hasClothes: false }) => {
         posX: 0.2,
         posY: 0.6,
         scaleX: 50,
-        scaleY: 50,
-        scale: 0.1,
+        scale: 0.2,
+        placeholderColor: k.rgb(200, 50, 50),
         nextScene: "neo_room",
         args: { hasBag: true, hasClothes: state.hasClothes },
       },
@@ -53,6 +53,7 @@ k.scene("neo_room", (state = { hasBag: false, hasClothes: false }) => {
         scaleX: 180,
         scaleY: 400,
         nextScene: "neo_room",
+        sprite: "batoh",
         args: { hasBag: state.hasBag, hasClothes: true },
       },
       {

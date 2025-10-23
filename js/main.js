@@ -104,29 +104,48 @@ function buildScene(k, config) {
   }
   if (config.objects) {
     config.objects.forEach((obj) => {
-      const components = [
-        k.pos(k.width() * obj.posX, k.height() * obj.posY),
-        k.anchor("center"),
-        k.area(),
-        "interactiveObject",
-        k.opacity(0),
-      ];
-      if (obj.sprite) {
-        components.push(k.sprite(obj.sprite));
-      } else {
-        components.push(
+      const sceneX = k.width() * obj.posX;
+      const sceneY = k.height() * obj.posY;
+
+      // Add placeholder rectangle first (behind sprite), interactive
+      if (obj.placeholderColor) {
+        const placeholder = k.add([
+          k.pos(sceneX, sceneY),
+          k.anchor("center"),
           k.rect(obj.scaleX || 100, obj.scaleY || 100),
-          k.color(obj.placeholderColor || PALETTE.placeholder_obj)
-        );
+          k.color(obj.placeholderColor),
+          k.area(),
+          "interactiveObject",
+          k.opacity(0),
+        ]);
+        placeholder.data = {
+          name: obj.name,
+          message: obj.message,
+          nextScene: obj.nextScene,
+          args: obj.args,
+        };
+        sceneObjects.push(placeholder);
       }
-      const gameObject = k.add(components);
-      gameObject.data = {
-        name: obj.name,
-        message: obj.message,
-        nextScene: obj.nextScene,
-        args: obj.args,
-      };
-      sceneObjects.push(gameObject);
+
+      // Add the sprite object if it exists, interactive
+      if (obj.sprite) {
+        const spriteObj = k.add([
+          k.pos(sceneX, sceneY),
+          k.anchor("center"),
+          k.sprite(obj.sprite),
+          k.scale(obj.scale || 1),
+          k.area(),
+          "interactiveObject",
+          k.opacity(0),
+        ]);
+        spriteObj.data = {
+          name: obj.name,
+          message: obj.message,
+          nextScene: obj.nextScene,
+          args: obj.args,
+        };
+        sceneObjects.push(spriteObj);
+      }
     });
   }
   k.add([
