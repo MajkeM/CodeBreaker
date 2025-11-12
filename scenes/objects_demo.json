@@ -1,0 +1,109 @@
+{
+  "nodes": {
+    "start": {
+      "speaker": "Narrator",
+      "text": "Najdi klíč a otevři zásuvku.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "objects": [
+        {
+          "id": "key1",
+          "type": "item",
+          "name": "Stříbrný klíč",
+          "img": "assets/images/key.svg",
+          "x": "40%",
+          "y": "50%",
+          "anchor": "50% 50%",
+          "width": "6%",
+          "height": "6%",
+          "z": 10,
+          "interactive": true,
+          "action": { "type": "pickup", "id": "silver_key", "name": "Stříbrný klíč", "playSFX": "assets/audio/pickup.wav", "goto": "after_pickup" }
+        },
+        {
+          "id": "drawer_hotspot",
+          "type": "hotspot",
+          "img": "assets/images/hotspot.svg",
+          "x": "30%",
+          "y": "50%",
+          "width": "8%",
+          "height": "12%",
+          "z": 10,
+          "interactive": true,
+          "action": { "type": "goto", "target": "open_drawer" }
+        }
+      ]
+    },
+    "open_drawer": {
+      "speaker": "Narrator",
+      "text": "Zásuvka je zamčená. Potřebuješ klíč.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "objects": [
+        {
+          "id": "locked_note",
+          "type": "decor",
+          "img": "assets/images/hotspot.svg",
+          "x": "60%",
+          "y": "60%",
+          "width": "6%",
+          "interactive": true,
+          "condition": { "var": "hasKey", "equals": false },
+          "action": { "type": "inspect", "text": "Zásuvka je zamčená. Potřebuje klíč." }
+        }
+      ],
+      "choices": [
+        { "text": "Zkusím klíč", "target": "try_key" },
+        { "text": "Vrátit se", "target": "start" }
+      ]
+    },
+    "try_key": {
+      "speaker": "Narrator",
+      "text": "Zkusíš použít klíč...",
+      "bg": "assets/images/bg_placeholder.svg",
+      "next": "after_try"
+    },
+    "after_try": {
+      "speaker": "Narrator",
+      "text": "Nic se nestalo, nemáš klíč.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "choices": [ { "text": "Vrátit se", "target": "start" } ]
+    },
+    "after_pickup": {
+      "speaker": "Narrator",
+      "text": "Našel jsi klíč!",
+      "bg": "assets/images/bg_placeholder.svg",
+      "next": "start_with_key"
+    },
+    "start_with_key": {
+      "speaker": "Narrator",
+      "text": "Máš klíč v inventáři. Zkus otevřít zásuvku.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "nodes": {},
+      "objects": [
+        {
+          "id": "drawer_hotspot2",
+          "type": "hotspot",
+          "img": "assets/images/hotspot.svg",
+          "x": "30%",
+          "y": "50%",
+          "width": "8%",
+          "height": "12%",
+          "z": 10,
+          "interactive": true,
+          "action": { "type": "goto", "target": "open_drawer_with_key" }
+        }
+      ]
+    },
+    "open_drawer_with_key": {
+      "speaker": "Narrator",
+      "text": "Otevřeš zásuvku klíčem a najdeš v ní mapu.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "objects": [],
+      "choices": [ { "text": "Konec demo", "target": "end" } ]
+    },
+    "end": {
+      "speaker": "Narrator",
+      "text": "Demo skončilo.",
+      "bg": "assets/images/bg_placeholder.svg"
+    }
+  }
+}

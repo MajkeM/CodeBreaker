@@ -1,0 +1,31 @@
+{
+  "nodes": {
+    "start": {
+      "speaker": "Narator",
+      "text": "Vítej v RenJS demo! Chceš-li pokračovat, vyber volbu.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "music": "calm_loop.ogg",
+      "choices": [
+        { "text": "Ano", "target": "yes" },
+        { "text": "Ne", "target": "no" }
+      ]
+    },
+    "yes": {
+      "speaker": "Hrdina",
+      "text": "Skvělé — jdeme dál.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "next": "end"
+    },
+    "no": {
+      "speaker": "Hrdina",
+      "text": "Dobře, možná později.",
+      "bg": "assets/images/bg_placeholder.svg",
+      "next": "end"
+    },
+    "end": {
+      "speaker": "",
+      "text": "Konec ukázky.",
+      "bg": "assets/images/bg_placeholder.svg"
+    }
+  }
+}
