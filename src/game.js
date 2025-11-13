@@ -204,9 +204,11 @@ export function initFallback(scene){
 
   function renderCharacter(spec){
     currentNodeCharSpec = spec || null;
+    // only render a character when the node provides a character spec
     charLayer.innerHTML = '';
+    if (!spec) return;
     // if node explicitly hides character
-    if (spec && spec.visible === false) return;
+    if (spec.visible === false) return;
     // determine source: priority - spec.img -> spec.clothes -> state.vars.clothes -> default
   // prefer the current state variable first (so setVar('clothes') overrides node default)
   const stateCloth = state.vars.clothes;
@@ -276,13 +278,17 @@ export function initFallback(scene){
     equals: (varName, value) => (state.vars[varName] === value),
     notEquals: (varName, value) => (state.vars[varName] !== value),
     has: (varName) => !!state.vars[varName],
+    // check inventory for an item id or name
+    hasItem: (itemId) => !!(state.inventory && state.inventory.some(i => (i.id === itemId || i.name === itemId))),
     not: (cond) => !evaluateCondition(cond),
     and: (...conds) => conds.every(c => evaluateCondition(c)),
     or: (...conds) => conds.some(c => evaluateCondition(c))
   };
 
   function evaluateCondition(cond){
-    if (!cond) return true;
+    // treat undefined/null as "no condition" (true), but preserve boolean values
+    if (cond === undefined || cond === null) return true;
+    if (typeof cond === 'boolean') return cond;
     // simple var/equals shape
     if (cond.var){
       const val = state.vars[cond.var];
@@ -350,10 +356,42 @@ export function initFallback(scene){
           try{ handleAction(action.onFail, obj); }catch(e){ console.warn('action.onFail failed', e); }
         } else {
           if (action.failSFX) playSFX(action.failSFX);
-          if (action.failText) showToast(action.failText);
-          else showToast('Není možné tuto akci provést nyní.');
+          if (action.failText){
+            // show failText in the main dialog box temporarily (better UX than toast)
+            try{
+              const prevText = textBox.textContent;
+              const prevSpeaker = nameBox.textContent;
+              // optionally show object name as speaker if available
+              nameBox.textContent = (obj && obj.name) ? obj.name : prevSpeaker;
+              textBox.textContent = action.failText;
+              const timeout = (action.failTimeout && Number(action.failTimeout)) ? Number(action.failTimeout) : 1400;
+              setTimeout(()=>{
+                // restore the node text if we're still on the same node
+                if (current && scene && scene.nodes && scene.nodes[current]){
+                  const node = scene.nodes[current];
+                  nameBox.textContent = node.speaker || '';
+                  textBox.textContent = node.text || '';
+                } else {
+                  nameBox.textContent = prevSpeaker;
+                  textBox.textContent = prevText;
+                }
+              }, timeout);
+            }catch(e){
+              // fallback to toast if DOM update fails
+              if (action.failText) showToast(action.failText);
+            }
+          } else {
+            // intentionally silent on generic failures — prefer no intrusive toast.
+            console.log('Action blocked: condition failed and no failText provided');
+          }
         }
         return;
+      } else {
+        // condition passed: if action defines an actions array, run it as a sequence
+        if (action.actions && Array.isArray(action.actions)){
+          action.actions.forEach(a=>{ try{ handleAction(a, obj); }catch(e){ console.warn('nested action failed', e); } });
+          return;
+        }
       }
     }
     // support a simple remove flag: remove the clicked object from the scene without adding to inventory
@@ -411,6 +449,30 @@ export function initFallback(scene){
       case 'inspect':
         // simple inspection: show a temporary modal text
         alert(action.text || obj.name || 'Inspect');
+        break;
+      case 'say':
+        // temporarily show text in the dialog box
+        try{
+          const prevText = textBox.textContent;
+          const prevSpeaker = nameBox.textContent;
+          nameBox.textContent = action.speaker || (obj && obj.name) || prevSpeaker;
+          textBox.textContent = action.text || '';
+          const timeout = (action.timeout && Number(action.timeout)) ? Number(action.timeout) : 1400;
+          if (action.wait) {
+            // if wait is true, don't auto-restore (caller will navigate)
+          } else {
+            setTimeout(()=>{
+              if (current && scene && scene.nodes && scene.nodes[current]){
+                const node = scene.nodes[current];
+                nameBox.textContent = node.speaker || '';
+                textBox.textContent = node.text || '';
+              } else {
+                nameBox.textContent = prevSpeaker;
+                textBox.textContent = prevText;
+              }
+            }, timeout);
+          }
+        }catch(e){ console.warn('say action failed', e); }
         break;
       default:
         console.log('Unknown action', action);
@@ -515,6 +577,35 @@ export function initFallback(scene){
         el.addEventListener('contextmenu', (ev)=>{ ev.preventDefault(); showUseMenu(obj, ev.clientX, ev.clientY); });
       }
       objectLayer.appendChild(el);
+      // support simple animation instructions on objects (e.g. move across screen)
+      if (obj.animate && obj.animate.type === 'move'){
+        try{
+          const dur = (obj.animate.duration && Number(obj.animate.duration)) ? Number(obj.animate.duration) : 3000;
+          // allow from/to to be strings like '10%' or numbers
+          const from = obj.animate.from || { x: parseCoord(obj.x,false), y: parseCoord(obj.y,true) };
+          const to = obj.animate.to || { x: '0%', y: parseCoord(obj.y,true) };
+          // apply starting coordinates
+          if (from.x) el.style.left = (typeof from.x === 'string' ? from.x : parseCoord(from.x,false));
+          if (from.y) el.style.top = (typeof from.y === 'string' ? from.y : parseCoord(from.y,true));
+          // force reflow
+          void el.offsetWidth;
+          el.style.transition = `left ${dur}ms linear, top ${dur}ms linear`;
+          // trigger move on next tick
+          setTimeout(()=>{
+            if (to.x) el.style.left = (typeof to.x === 'string' ? to.x : parseCoord(to.x,false));
+            if (to.y) el.style.top = (typeof to.y === 'string' ? to.y : parseCoord(to.y,true));
+          }, 20);
+          // when animation ends, run onEnd action if present
+          const onEnd = ()=>{
+            el.removeEventListener('transitionend', onEnd);
+            if (obj.animate && obj.animate.onEnd){
+              // support simple action shapes: { type: 'goto', target: 'nodeId' } or array
+              try{ handleAction(obj.animate.onEnd, obj); }catch(e){ console.warn('animate onEnd failed', e); }
+            }
+          };
+          el.addEventListener('transitionend', onEnd);
+        }catch(e){ console.warn('animate failed', e); }
+      }
     });
     nameBox.textContent = node.speaker || '';
     textBox.textContent = node.text || '';

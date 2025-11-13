@@ -28,12 +28,17 @@
           "width": 115,
           "z": 10,
           "interactive": true,
-
-          "action": [
-            { "type": "setVar", "name": "clothes", "value": "backpack" },
-            { "type": "remove" },
-            { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" }
-          ]
+          "action": {
+            "condition": { "var": "clothes", "equals": "dressed" },
+            "failText": "Nejspíš bych se měl prvně obléct.",
+            "failTimeout": 1800,
+            "actions": [
+              { "type": "setVar", "name": "clothes", "value": "backpack" },
+              { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" },
+              { "type": "remove" },
+              { "type": "goto", "target": "home_select" }
+            ]
+          }
         },
         {
           "id": "closet",
@@ -48,170 +53,130 @@
             { "type": "setVar", "name": "clothes", "value": "dressed" },
             { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" }
           ]
-        }
-        ]
-    },
-
-    "home_select": {
-      "speaker": "Neo",
-      "text": "Nové ráno. Musím se připravit do školy.",
-      "bg": "assets/images/pokoj.png",
-      "objects": [
-        {
-          "id": "backpack",
-          "type": "item",
-          "img": "assets/images/batoh.png",
-          "x": "72%",
-          "y": "60%",
-          "anchor": "50% 50%",   
-          "width": "6%",         
-          "z": 20,
-          "interactive": true,
-          "action": { "type": "pickup", "addTo": "inventory", "goto": "inspect_key" }
         },
         {
-          "id": "closer",
+          "id": "door",
           "type": "hotspot",
-          "x":"45%",
-          "y":"40%",
-          "width": 120,
-          "height": 80,
+          "x":"20%",
+          "y":"25%",
+          "width": 70,
+          "height": 310,
           "z": 10,
           "interactive": true,
-          "action": { "type": "goto", "target": "closet" }
+          "action": [
+            {
+          "condition": { "fn": "or", "args": [ { "var": "clothes", "equals": "backpack" }, { "fn": "hasItem", "args": ["backpack"] } ] },
+          "failText": "Ještě nemůžu jít, potřebuji se připravit.",
+          "failTimeout": 1800,
+          "type": "goto",
+          "target": "cesta_do_skoly"
+          }
+          ]
         }
-        ]
-    },
-
-    "scene1_morning": {
-      "speaker": "Vypravěč",
-      "text": "Scéna 1: Ráno ve škole. Učitel oznamuje problém se školním serverem. Co uděláš?",
-      "choices": [
-        { "text": "Jít za správcem IT (serverovna)", "target": "server_room_2A" },
-        { "text": "Zůstat ve třídě", "target": "class_2B" }
       ]
     },
 
-    "server_room_2A": {
-      "speaker": "Správce IT",
-      "text": "Jste v serverovně. Správce žádá o pomoc. Co nabídneš?",
-      "choices": [
-        { "text": "Pomoc s logy", "target": "server_help_logs" },
-        { "text": "Zkusit restartovat server", "target": "server_try_restart" }
-      ]
-    },
-
-    "class_2B": {
-      "speaker": "Spolužák",
-      "text": "Jsi ve třídě. Tom se zdá nervózní. Co uděláš?",
-      "choices": [
-        { "text": "Promluvit si s Tomem", "target": "class_talk_tom" },
-        { "text": "Prozkoumat okolí (hledat stopy)", "target": "class_explore" }
-      ]
-    },
-
-    "server_help_logs": {
-      "speaker": "Ty",
-      "text": "Prohlížíš logy a nacházíš podezřelé záznamy. Co dál?",
-      "choices": [
-        { "text": "Provést analýzu logů", "target": "analysis_logs_3A" },
-        { "text": "Přeskočit a zkusit restart", "target": "restart_servers_3B" }
-      ]
-    },
-
-    "server_try_restart": {
-      "speaker": "Ty",
-      "text": "Provádíš restart serverů. Některé služby naskočí, jiné ne. Co zkusíš?",
-      "choices": [
-        { "text": "Zkusit analýzu logů dodatečně", "target": "analysis_logs_3A" },
-        { "text": "Opakovat restart (riskovat)", "target": "restart_servers_3B" }
-      ]
-    },
-
-    "class_talk_tom": {
-      "speaker": "Tom",
-      "text": "Tom se přizná, že něco spustil náhodou ve skriptech. Co mu řekneš?",
-      "choices": [
-        { "text": "Přiznat Toma správci (oznámit)", "target": "tom_confession_3C" },
-        { "text": "Pomoci Tomovi skript opravit (prozkoumat)", "target": "run_scripts_3D" }
-      ]
-    },
-
-    "class_explore": {
-      "speaker": "Ty",
-      "text": "Najdeš soubor se skriptem a podezřelou aktivitu. Co uděláš?",
-      "choices": [
-        { "text": "Promluvit s Tomem", "target": "class_talk_tom" },
-        { "text": "Oznámit správci", "target": "server_room_2A" }
-      ]
-    },
-
-    "analysis_logs_3A": {
-      "speaker": "Správce IT",
-      "text": "Analýza odhalí korelaci mezi akcemi a chybami. Můžeme skloubit informace. Co dál?",
-      "choices": [
-        { "text": "Spolupracovat s IT a vytvořit záplatu", "target": "cooperation_it_4A" },
-        { "text": "Zachovat důkazy a oznámit vedení (odhalení)", "target": "revelation_4B" }
-      ]
-    },
-
-    "restart_servers_3B": {
-      "speaker": "Správce IT",
-      "text": "Restart pomohl částečně; následná analýza odhalila další stopy.",
-      "choices": [
-        { "text": "Dohlédnout na restart znovu a monitorovat", "target": "cooperation_it_4A" },
-        { "text": "Připravit report a oznámit vedení", "target": "revelation_4B" }
-      ]
-    },
-
-    "tom_confession_3C": {
-      "speaker": "Tom",
-      "text": "Tom se otevřeně přiznal. Správce to bere v potaz.",
-      "choices": [
-        { "text": "Pomoci Tomovi opravit chybu", "target": "cooperation_it_4A" },
-        { "text": "Nechat situaci vyšetřit (odhalení)", "target": "revelation_4B" }
-      ]
-    },
-
-    "run_scripts_3D": {
-      "speaker": "Ty",
-      "text": "Spouštíš skript v bezpečném prostředí a analyzuješ dopad.",
-      "choices": [
-        { "text": "Opravit a nasadit záplatu", "target": "cooperation_it_4A" },
-        { "text": "Vyvolat formální vyšetřování", "target": "revelation_4B" }
-      ]
-    },
-
-    "cooperation_it_4A": {
-      "speaker": "Správce IT",
-      "text": "Společnou prací jste problém vyřešili a zlepšili bezpečnost. Konec.",
-      "next": "ending1"
-    },
-
-    "revelation_4B": {
-      "speaker": "Ředitel",
-      "text": "Provedli jste hlášení, následovalo vyšetřování a odhalení příčiny.",
-      "next": "ending2"
-    },
-
-    "ending1": {
+    "cesta_do_skoly": {
       "speaker": "",
-      "text": "Ending 1: Spolupráce s IT vedla k rychlému řešení a pozitivnímu výsledku."
-    },
+      "text": "Hru vytvořil: MajkeM\nGrafika: ...\nProgramování: Matyáš\nDík za hraní!",
+      "objects": [
 
-    "ending2": {
-      "speaker": "",
-      "text": "Ending 2: Formální vyšetřování odhalilo širší problém; následovaly kroky k nápravě."
-    },
+        {
+          "id": "bus",
+          "type": "decor",
+          "img": "assets/images/bus.png",
+          "x": "-40%",
+          "y": "50%",
+          "anchor": "50% 50%",
+          "width": "100%",
+          "z": 8,
+          "interactive": false,
+          "animate": {
+            "type": "move",
+            "from": { "x": "-40%", "y": "50%" },
+            "to": { "x": "110%", "y": "50%" },
+            "duration": 16000,
+            "onEnd": { "type": "goto", "target": "cesta_do_skoly" }
+          }
+        },
 
-    "ending3": {
-      "speaker": "",
-      "text": "Ending 3: Tom přiznal chybu; situace byla vyřešena s omluvou a školením."
-    },
-
-    "ending4": {
-      "speaker": "",
-      "text": "Ending 4: Analýza skriptu odhalila skrytou chybu; byla nasazena oprava."
+        {
+          "id": "bus",
+          "type": "decor",
+          "img": "assets/images/road.png",
+          "x": "50%",
+          "y": "50%",
+          "anchor": "50% 50%",
+          "width": "120%",
+          "z": 7,
+          "interactive": false,
+          "animate": {
+            "type": "move",
+            "from": { "x": "50%", "y": "50%" },
+            "to": { "x": "40%", "y": "50%" },
+            "duration": 16000,
+            "onEnd": { "type": "goto", "target": "cesta_do_skoly" }
+          }
+          
+        },
+         {
+          "id": "sky",
+          "type": "decor",
+          "img": "assets/images/sky.png",
+          "x": "40%",
+          "y": "0%",
+          "anchor": "50% 50%",
+          "width": "120%",
+          "z": 1,
+          "interactive": false,
+          "animate": {
+            "type": "move",
+            "from": { "x": "40%", "y": "50%" },
+            "to": { "x": "50%", "y": "50%" },
+            "duration": 16000,
+            "onEnd": { "type": "goto", "target": "cesta_do_skoly" }
+          }
+          
+        },
+        {
+          "id": "landscape",
+          "type": "decor",
+          "img": "assets/images/landscape.png",
+          "x": "50%",
+          "y": "0%",
+          "anchor": "50% 50%",
+          "width": "120%",
+          "z": 2,
+          "interactive": false,
+          "animate": {
+            "type": "move",
+            "from": { "x": "50%", "y": "50%" },
+            "to": { "x": "40%", "y": "50%" },
+            "duration": 190000,
+            "onEnd": { "type": "goto", "target": "cesta_do_skoly" }
+          }
+          
+        },
+                {
+          "id": "bush",
+          "type": "decor",
+          "img": "assets/images/bushes.png",
+          "x": "50%",
+          "y": "0%",
+          "anchor": "50% 50%",
+          "width": "110%",
+          "z": 10,
+          "interactive": false,
+          "animate": {
+            "type": "move",
+            "from": { "x": "50%", "y": "50%" },
+            "to": { "x": "40%", "y": "50%" },
+            "duration": 13000,
+            "onEnd": { "type": "goto", "target": "cesta_do_skoly" }
+          }
+          
+        }
+      ]
     }
   }
 }

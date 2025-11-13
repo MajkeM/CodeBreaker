@@ -7,7 +7,7 @@ const CONFIG = {
 async function boot(){
   let scene = null;
   try{
-    const resp = await fetch('./scenes/objects_demo.json');
+    const resp = await fetch('./scenes/pribeh1.json');
     scene = await resp.json();
   }catch(e){
     console.error('Cannot load scene JSON:', e);
