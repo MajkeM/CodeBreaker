@@ -7,9 +7,11 @@
     "build": "vite build",
     "preview": "vite preview --port 5173",
     "start": "npx live-server --port=5173 --open=./index.html",
+    "optimize-images": "node ./scripts/optimize-images.js",
     "fetch-renjs": "node ./scripts/fetch-renjs.js"
   },
   "devDependencies": {
+    "sharp": "^0.34.5",
     "vite": "^5.0.0"
   }
 }

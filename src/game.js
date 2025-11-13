@@ -9,6 +9,132 @@ export function initFallback(scene){
   };
   // start with a fresh state on each page load (no localStorage persistence)
 
+  const TRANSFORM_DATA_KEY = '__rnTransformParts';
+  const TRANSFORM_ORDER = ['base', 'hover', 'animation', 'effect'];
+
+  function setTransformPart(el, part, value){
+    if (!el) return;
+    if (!el[TRANSFORM_DATA_KEY]) el[TRANSFORM_DATA_KEY] = {};
+    el[TRANSFORM_DATA_KEY][part] = value || '';
+    const parts = el[TRANSFORM_DATA_KEY];
+    const dynamicKeys = Object.keys(parts).filter(k => !TRANSFORM_ORDER.includes(k));
+    const order = TRANSFORM_ORDER.concat(dynamicKeys);
+    const combined = order.map(key => parts[key]).filter(Boolean).join(' ');
+    el.style.transform = combined;
+  }
+
+  function getAnimationProgress(el){
+    if (!el || !el.__animData) return null;
+    const animData = el.__animData;
+    const parentRect = (animData.parentRect && animData.parentRect.width)
+      ? animData.parentRect
+      : ((el.offsetParent && typeof el.offsetParent.getBoundingClientRect === 'function')
+        ? el.offsetParent.getBoundingClientRect()
+        : objectLayer.getBoundingClientRect());
+    if (!parentRect || (!parentRect.width && !parentRect.height)) return null;
+    const currentRect = el.getBoundingClientRect();
+    const startRect = animData.startRect;
+    const endRect = animData.endRect;
+    if (!currentRect || !startRect || !endRect) return null;
+    const targetX = endRect.left - parentRect.left;
+    const targetY = endRect.top - parentRect.top;
+    const currentX = currentRect.left - parentRect.left;
+    const currentY = currentRect.top - parentRect.top;
+    const startX = startRect.left - parentRect.left;
+    const startY = startRect.top - parentRect.top;
+    const totalX = startX - targetX;
+    const totalY = startY - targetY;
+    const remainingDist = Math.hypot(currentX - targetX, currentY - targetY);
+    const totalDist = Math.max(1e-5, Math.hypot(totalX, totalY));
+    const fraction = Math.min(1, Math.max(0, remainingDist / totalDist));
+    return { fraction, parentRect };
+  }
+
+  function composeTransition(baseTransition, transformSpec){
+    const baseParts = (baseTransition || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .filter(s => !s.toLowerCase().startsWith('transform'));
+    const pieces = [`transform ${transformSpec}`].concat(baseParts);
+    return pieces.join(', ');
+  }
+
+  function setupRotation(el, obj, rotateCfg){
+    if (!el || !rotateCfg) return;
+    try{
+      if (el.__rotationData && el.__rotationData.stop){
+        el.__rotationData.stop();
+      }
+      const rawDuration = rotateCfg.duration ?? rotateCfg.ms ?? rotateCfg.period ?? rotateCfg.time;
+      const parsedDuration = Number(rawDuration);
+      const baseDuration = (Number.isFinite(parsedDuration) && parsedDuration > 0)
+        ? parsedDuration
+        : 1200;
+      const rawDegrees = rotateCfg.degrees ?? rotateCfg.angle ?? rotateCfg.range ?? rotateCfg.turns;
+      const parsedDegrees = Number(rawDegrees);
+      const degreesPerCycle = (Number.isFinite(parsedDegrees) && parsedDegrees !== 0)
+        ? parsedDegrees
+        : 360;
+      const directionRaw = rotateCfg.direction || rotateCfg.dir || rotateCfg.rotationDirection;
+      const direction = (directionRaw === 'ccw' || directionRaw === 'counterclockwise' || directionRaw === 'anticlockwise' || directionRaw === -1)
+        ? -1
+        : 1;
+      const offsetRaw = (rotateCfg.startDeg !== undefined) ? rotateCfg.startDeg : rotateCfg.offset;
+      const parsedOffset = Number(offsetRaw);
+      const offset = (Number.isFinite(parsedOffset)) ? parsedOffset : 0;
+      const speedKey = obj && obj.id ? 'speed_' + obj.id : null;
+      const initialFactorRaw = speedKey && state.vars && state.vars[speedKey] !== undefined
+        ? Number(state.vars[speedKey])
+        : 1;
+      const speedFactor = (Number.isFinite(initialFactorRaw) && initialFactorRaw > 0) ? initialFactorRaw : 1;
+      const rafFn = (typeof window !== 'undefined' && window.requestAnimationFrame) ? window.requestAnimationFrame.bind(window)
+        : (cb)=>setTimeout(()=>cb(Date.now()), 16);
+      const cafFn = (typeof window !== 'undefined' && window.cancelAnimationFrame) ? window.cancelAnimationFrame.bind(window)
+        : (id)=>clearTimeout(id);
+      const rotData = {
+        baseDuration,
+        degreesPerCycle,
+        direction,
+        offset,
+        speedFactor,
+        progress: 0,
+        lastTs: null,
+        running: true,
+        rafId: null
+      };
+      const step = (ts)=>{
+        if (!rotData.running) return;
+        const hasDocument = (typeof document !== 'undefined' && document && document.body && typeof document.body.contains === 'function');
+        if (hasDocument && !document.body.contains(el)){
+          rotData.running = false;
+          setTransformPart(el, 'spin', '');
+          return;
+        }
+        if (rotData.lastTs === null) rotData.lastTs = ts;
+        const delta = ts - rotData.lastTs;
+        rotData.lastTs = ts;
+        const duration = Math.max(16, rotData.baseDuration * rotData.speedFactor);
+        if (!Number.isFinite(duration) || duration <= 0){
+          rotData.rafId = rafFn(step);
+          return;
+        }
+        rotData.progress = (rotData.progress + (delta / duration)) % 1;
+        const angle = rotData.offset + (rotData.direction * rotData.degreesPerCycle * rotData.progress);
+        setTransformPart(el, 'spin', `rotate(${angle}deg)`);
+        rotData.rafId = rafFn(step);
+      };
+      rotData.stop = ()=>{
+        if (!rotData.running) return;
+        rotData.running = false;
+        if (rotData.rafId !== null) cafFn(rotData.rafId);
+        setTransformPart(el, 'spin', '');
+      };
+      el.__rotationData = rotData;
+      rotData.rafId = rafFn(step);
+    }catch(e){ console.warn('setupRotation failed', e); }
+  }
+
   // background image element (covers whole game area)
   const bgEl = document.createElement('img');
   bgEl.style.position = 'absolute';
@@ -71,38 +197,77 @@ export function initFallback(scene){
   inventoryUI.appendChild(resetBtn);
 
   const wrap = document.createElement('div');
-  wrap.style.color = '#fff';
-  wrap.style.padding = '18px';
-  wrap.style.fontFamily = 'Segoe UI, Arial, sans-serif';
-  wrap.style.boxSizing = 'border-box';
-  wrap.style.height = '100%';
-  wrap.style.display = 'flex';
-  wrap.style.flexDirection = 'column';
-  wrap.style.justifyContent = 'flex-end';
-  wrap.style.position = 'relative';
+  wrap.classList.add('vn-dialog-wrap');
+  wrap.style.position = 'absolute';
+  wrap.style.inset = '0';
   wrap.style.zIndex = '10';
-  // allow pointer events to pass through transparent parts of wrap so objects below can be clicked
   wrap.style.pointerEvents = 'none';
+  wrap.style.fontFamily = 'Segoe UI, Arial, sans-serif';
 
-  const nameBox = document.createElement('div');
-  nameBox.style.fontWeight = '700';
-  nameBox.style.marginBottom = '6px';
-  nameBox.classList.add('vn-name');
+  const bubbleGroup = document.createElement('div');
+  bubbleGroup.classList.add('vn-dialog-group');
+  bubbleGroup.style.position = 'absolute';
+  bubbleGroup.style.pointerEvents = 'auto';
+  bubbleGroup.style.left = '50%';
+  bubbleGroup.style.top = '55%';
 
   const textBox = document.createElement('div');
-  textBox.style.background = 'rgba(0,0,0,.6)';
-  textBox.style.padding = '12px';
-  textBox.style.borderRadius = '6px';
   textBox.classList.add('vn-textbox');
+  textBox.style.position = 'relative';
+  textBox.style.maxWidth = '480px';
+  textBox.style.background = '#ffffff';
+  textBox.style.color = '#131313';
+  textBox.style.padding = '22px 28px';
+  textBox.style.borderRadius = '28px';
+  textBox.style.border = '4px solid #121417';
+  textBox.style.boxShadow = '12px 14px 0 rgba(18, 20, 23, 0.35)';
+  textBox.style.fontSize = '20px';
+  textBox.style.lineHeight = '1.5';
+  textBox.style.fontWeight = '600';
+  textBox.style.letterSpacing = '0.3px';
+  textBox.style.pointerEvents = 'auto';
+  textBox.style.transformOrigin = '50% 100%';
+  textBox.style.transition = 'opacity 200ms ease, transform 240ms cubic-bezier(0.2, 1.2, 0.36, 1)';
+
+  const bubbleText = document.createElement('div');
+  bubbleText.classList.add('vn-textbox-content');
+  bubbleText.style.position = 'relative';
+  bubbleText.style.zIndex = '2';
+  bubbleText.style.textShadow = '3px 3px 0 rgba(0,0,0,0.12)';
+  textBox.appendChild(bubbleText);
+
+  const bubbleTail = document.createElement('div');
+  bubbleTail.classList.add('vn-textbox-tail');
+  bubbleTail.style.position = 'absolute';
+  bubbleTail.style.width = '72px';
+  bubbleTail.style.height = '72px';
+  bubbleTail.style.pointerEvents = 'none';
+  bubbleTail.style.transformOrigin = '50% 0%';
+  bubbleTail.style.transform = 'rotate(0deg)';
+  bubbleTail.style.zIndex = '0';
+
+  [28, 20, 14].forEach((size, index)=>{
+    const dot = document.createElement('div');
+    dot.classList.add('vn-textbox-tail-dot');
+    dot.style.position = 'absolute';
+    dot.style.width = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.left = '50%';
+    dot.style.transform = 'translateX(-50%)';
+    dot.style.top = `${index * 22}px`;
+    dot.style.background = '#ffffff';
+    dot.style.border = '4px solid #121417';
+    dot.style.borderRadius = '50%';
+    dot.style.boxShadow = '6px 6px 0 rgba(18, 20, 23, 0.2)';
+    bubbleTail.appendChild(dot);
+  });
+  textBox.appendChild(bubbleTail);
 
   const choicesDiv = document.createElement('div');
-  choicesDiv.style.marginTop = '8px';
-  choicesDiv.style.display = 'flex';
-  choicesDiv.style.flexWrap = 'wrap';
+  choicesDiv.style.display = 'none';
 
-  wrap.appendChild(nameBox);
-  wrap.appendChild(textBox);
-  wrap.appendChild(choicesDiv);
+  bubbleGroup.appendChild(textBox);
+  wrap.appendChild(bubbleGroup);
   container.appendChild(wrap);
 
   // fullscreen button
@@ -118,17 +283,405 @@ export function initFallback(scene){
   fsBtn.onclick = ()=>{ if (container.requestFullscreen) container.requestFullscreen(); else alert('Fullscreen not supported'); };
   container.appendChild(fsBtn);
 
-  // only enable pointer events on the interactive UI elements (so clicks elsewhere reach objects)
-  nameBox.style.pointerEvents = 'auto';
-  textBox.style.pointerEvents = 'auto';
-  choicesDiv.style.pointerEvents = 'auto';
+  const bubbleElements = [textBox];
+  let bubbleSwapTimer = null;
+  let autoAdvanceTimer = null;
+  let bubbleHasContent = false;
+  const speakerTargets = new Map();
+  let activeSpeakerKey = null;
+
+  const captionBubble = document.createElement('div');
+  captionBubble.classList.add('vn-caption');
+  captionBubble.style.position = 'absolute';
+  captionBubble.style.left = '50%';
+  captionBubble.style.top = '5%';
+  captionBubble.style.transform = 'translateX(-50%)';
+  captionBubble.style.maxWidth = '70%';
+  captionBubble.style.padding = '14px 22px';
+  captionBubble.style.background = 'rgba(254, 247, 232, 0.92)';
+  captionBubble.style.border = '2px solid rgba(56, 38, 6, 0.45)';
+  captionBubble.style.borderRadius = '28px';
+  captionBubble.style.boxShadow = '0 16px 32px rgba(0,0,0,0.25)';
+  captionBubble.style.fontFamily = 'Segoe UI, Arial, sans-serif';
+  captionBubble.style.fontSize = '20px';
+  captionBubble.style.fontWeight = '600';
+  captionBubble.style.letterSpacing = '0.25px';
+  captionBubble.style.color = '#2b1a07';
+  captionBubble.style.textAlign = 'center';
+  captionBubble.style.pointerEvents = 'none';
+  captionBubble.style.opacity = '0';
+  captionBubble.style.display = 'none';
+  captionBubble.style.transition = 'opacity 220ms ease, transform 240ms ease';
+  captionBubble.style.whiteSpace = 'pre-line';
+
+  const captionText = document.createElement('div');
+  captionText.style.position = 'relative';
+  captionText.style.zIndex = '2';
+  captionText.style.textShadow = '0 2px 0 rgba(255,255,255,0.55)';
+  captionBubble.appendChild(captionText);
+
+  wrap.appendChild(captionBubble);
+  let captionVisible = false;
+  let captionCurrent = '';
+  let captionHideTimer = null;
+
+  function scheduleCaptionHide(){
+    if (captionHideTimer){
+      clearTimeout(captionHideTimer);
+      captionHideTimer = null;
+    }
+    captionHideTimer = setTimeout(()=>{
+      captionHideTimer = null;
+      hideSceneCaption(false);
+    }, 4800);
+  }
+
+  function normalizeSpeakerKey(value){
+    if (value === undefined || value === null) return null;
+    const str = String(value).trim();
+    return str ? str.toLowerCase() : null;
+  }
+
+  function registerSpeakerKeys(keys, el){
+    if (!el || !keys || !keys.length) return;
+    keys.forEach(key=>{
+      const normal = normalizeSpeakerKey(key);
+      if (!normal) return;
+      speakerTargets.set(normal, el);
+    });
+  }
+
+  function setActiveSpeaker(targetKey){
+    activeSpeakerKey = normalizeSpeakerKey(targetKey);
+    requestAnimationFrame(()=> positionDialogueBubble());
+  }
+
+  function getActiveSpeakerElement(){
+    if (activeSpeakerKey){
+      const el = speakerTargets.get(activeSpeakerKey);
+      if (el) return el;
+    }
+    for (const el of speakerTargets.values()){
+      if (el) return el;
+    }
+    return charLayer.firstElementChild || null;
+  }
+
+  function setDialogText(value){
+    bubbleText.textContent = value || '';
+  }
+
+  function getDialogText(){
+    return bubbleText.textContent || '';
+  }
+
+  function setSpeakerText(){
+    // Names intentionally hidden for comic-style delivery.
+  }
+
+  function bubbleTransitionIn(updateFn){
+    if (bubbleSwapTimer){ clearTimeout(bubbleSwapTimer); bubbleSwapTimer = null; }
+    if (updateFn) updateFn();
+    if (!bubbleHasVisibleContent()){
+      hideBubbleImmediate();
+      return;
+    }
+    bubbleGroup.style.pointerEvents = 'auto';
+    bubbleTail.style.display = 'block';
+    bubbleElements.forEach(el=>{
+      if (!el) return;
+      el.style.transition = 'none';
+      el.style.visibility = 'visible';
+      el.style.opacity = '0';
+      el.style.transform = 'scale(0.9)';
+    });
+    requestAnimationFrame(()=>{
+      bubbleElements.forEach(el=>{
+        if (!el) return;
+        el.style.transition = 'opacity 240ms ease, transform 280ms cubic-bezier(0.18,1.4,0.36,1)';
+        el.style.opacity = '1';
+        el.style.transform = 'scale(1)';
+      });
+      setTimeout(positionDialogueBubble, 20);
+    });
+    bubbleHasContent = true;
+  }
+
+  function bubbleSwap(updateFn){
+    if (!bubbleHasContent){
+      bubbleTransitionIn(updateFn);
+      return;
+    }
+    if (bubbleSwapTimer){ clearTimeout(bubbleSwapTimer); bubbleSwapTimer = null; }
+    bubbleElements.forEach(el=>{
+      if (!el) return;
+      el.style.transition = 'opacity 140ms ease, transform 180ms cubic-bezier(0.45,-0.1,0.8,0.25)';
+      el.style.opacity = '0';
+      el.style.transform = 'scale(0.94)';
+    });
+    bubbleSwapTimer = setTimeout(()=>{
+      if (updateFn) updateFn();
+      if (!bubbleHasVisibleContent()){
+        hideBubbleImmediate();
+        return;
+      }
+      bubbleGroup.style.pointerEvents = 'auto';
+      bubbleTail.style.display = 'block';
+      positionDialogueBubble();
+      requestAnimationFrame(()=>{
+        bubbleElements.forEach(el=>{
+          if (!el) return;
+          el.style.transition = 'opacity 220ms ease, transform 260ms cubic-bezier(0.18,1.4,0.36,1)';
+          el.style.opacity = '1';
+          el.style.transform = 'scale(1)';
+        });
+      });
+    }, 150);
+  }
+
+  function bubbleHasVisibleContent(){
+    const text = bubbleText.textContent || '';
+    const hasText = text.trim().length > 0;
+    const hasChoices = choicesDiv && choicesDiv.style.display !== 'none' && choicesDiv.childElementCount > 0;
+    return hasText || hasChoices;
+  }
+
+  function hideBubbleImmediate(){
+    if (bubbleSwapTimer){ clearTimeout(bubbleSwapTimer); bubbleSwapTimer = null; }
+    bubbleHasContent = false;
+    bubbleElements.forEach(el=>{
+      if (!el) return;
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      el.style.visibility = 'hidden';
+      el.style.transform = 'scale(0.94)';
+    });
+    bubbleTail.style.display = 'none';
+    bubbleGroup.style.pointerEvents = 'none';
+  }
+
+  function showSceneCaption(text){
+    const content = (text || '').trim();
+    if (!content){
+      hideSceneCaption(true);
+      return;
+    }
+    if (content === captionCurrent && captionVisible){
+      scheduleCaptionHide();
+      return;
+    }
+    captionCurrent = content;
+    captionText.textContent = content;
+    captionBubble.style.display = 'block';
+    captionBubble.style.opacity = '0';
+    captionBubble.style.transform = 'translateX(-50%) translateY(-6px)';
+    requestAnimationFrame(()=>{
+      captionBubble.style.transition = 'opacity 220ms ease, transform 260ms ease';
+      captionBubble.style.opacity = '1';
+      captionBubble.style.transform = 'translateX(-50%) translateY(0)';
+    });
+    captionVisible = true;
+    scheduleCaptionHide();
+  }
+
+  function hideSceneCaption(immediate){
+    captionCurrent = '';
+    if (captionHideTimer){
+      clearTimeout(captionHideTimer);
+      captionHideTimer = null;
+    }
+    if (!captionVisible){
+      captionBubble.style.display = 'none';
+      return;
+    }
+    if (immediate){
+      captionBubble.style.transition = 'none';
+      captionBubble.style.opacity = '0';
+      captionBubble.style.display = 'none';
+      captionBubble.style.transform = 'translateX(-50%) translateY(-6px)';
+      captionVisible = false;
+      return;
+    }
+    captionBubble.style.transition = 'opacity 180ms ease, transform 220ms ease';
+    captionBubble.style.opacity = '0';
+    captionBubble.style.transform = 'translateX(-50%) translateY(-6px)';
+    captionVisible = false;
+    setTimeout(()=>{
+      if (!captionVisible) captionBubble.style.display = 'none';
+    }, 220);
+  }
+
+  function positionDialogueBubble(){
+    try{
+      if (!bubbleGroup || !textBox) return;
+      if (!bubbleHasVisibleContent()){
+        bubbleTail.style.display = 'none';
+        return;
+      }
+    const containerRect = container.getBoundingClientRect();
+    const bubbleWidth = textBox.offsetWidth || 340;
+    const groupHeight = bubbleGroup.offsetHeight || textBox.offsetHeight || 180;
+    const tailWidth = bubbleTail.offsetWidth || 72;
+    const tailHeight = bubbleTail.offsetHeight || 72;
+    const tailHalfWidth = tailWidth * 0.5;
+    const tailHalfHeight = tailHeight * 0.5;
+    const clamp = (value, min, max)=> Math.max(min, Math.min(max, value));
+    bubbleTail.style.display = 'block';
+    bubbleTail.style.opacity = '1';
+    bubbleTail.style.right = 'auto';
+    bubbleTail.style.transform = 'rotate(0deg)';
+    bubbleTail.style.transformOrigin = '50% 0%';
+      let targetLeft = containerRect.width * 0.5 - bubbleWidth * 0.5;
+      let targetTop = containerRect.height * 0.32 - groupHeight * 0.5;
+
+  const characterEl = getActiveSpeakerElement();
+      if (characterEl){
+        const charRect = characterEl.getBoundingClientRect();
+        const charLeft = charRect.left - containerRect.left;
+        const charTop = charRect.top - containerRect.top;
+        const charRight = charLeft + charRect.width;
+        const charBottom = charTop + charRect.height;
+        const charCenterX = charLeft + charRect.width * 0.5;
+        const charCenterY = charTop + charRect.height * 0.5;
+        const margin = 32;
+        const canPlaceAbove = (charTop - groupHeight - margin) >= 24;
+        const canPlaceRight = (charRight + margin + bubbleWidth) <= (containerRect.width - 24);
+        const canPlaceLeft = (charLeft - margin - bubbleWidth) >= 24;
+        const canPlaceBelow = (charBottom + margin + groupHeight) <= (containerRect.height - 24);
+        let placement = 'top';
+        if (canPlaceAbove){
+          placement = 'top';
+          targetTop = charTop - groupHeight - margin;
+          targetLeft = Math.max(24, Math.min(containerRect.width - bubbleWidth - 24, charCenterX - bubbleWidth * 0.5));
+        } else if (canPlaceRight){
+          placement = 'right';
+          targetLeft = charRight + margin;
+          targetTop = Math.max(24, Math.min(containerRect.height - groupHeight - 24, charCenterY - groupHeight * 0.5));
+        } else if (canPlaceLeft){
+          placement = 'left';
+          targetLeft = charLeft - bubbleWidth - margin;
+          targetTop = Math.max(24, Math.min(containerRect.height - groupHeight - 24, charCenterY - groupHeight * 0.5));
+        } else if (canPlaceBelow){
+          placement = 'bottom';
+          targetTop = charBottom + margin;
+          targetLeft = Math.max(24, Math.min(containerRect.width - bubbleWidth - 24, charCenterX - bubbleWidth * 0.5));
+        } else {
+          placement = 'overlay';
+          targetLeft = Math.max(24, Math.min(containerRect.width - bubbleWidth - 24, charCenterX - bubbleWidth * 0.5));
+          targetTop = Math.max(24, Math.min(containerRect.height - groupHeight - 24, charTop - groupHeight + 16));
+        }
+
+        if (placement === 'top'){
+          const tailOffset = clamp((charCenterX - targetLeft) - tailHalfWidth, 32, bubbleWidth - tailWidth - 32);
+          bubbleTail.style.left = `${tailOffset}px`;
+          bubbleTail.style.top = 'auto';
+          bubbleTail.style.bottom = `${-tailHeight + 12}px`;
+          bubbleTail.style.transformOrigin = '50% 0%';
+          bubbleTail.style.transform = 'rotate(0deg)';
+        } else if (placement === 'bottom'){
+          const tailOffset = clamp((charCenterX - targetLeft) - tailHalfWidth, 32, bubbleWidth - tailWidth - 32);
+          bubbleTail.style.left = `${tailOffset}px`;
+          bubbleTail.style.bottom = 'auto';
+          bubbleTail.style.top = `${-tailHeight + 12}px`;
+          bubbleTail.style.transformOrigin = '50% 100%';
+          bubbleTail.style.transform = 'rotate(180deg)';
+        } else if (placement === 'right'){
+          const tailOffset = clamp((charCenterY - targetTop) - tailHalfHeight, 24, groupHeight - tailHeight - 24);
+          bubbleTail.style.top = `${tailOffset}px`;
+          bubbleTail.style.bottom = 'auto';
+          bubbleTail.style.left = `${-tailWidth + 12}px`;
+          bubbleTail.style.transformOrigin = '100% 50%';
+          bubbleTail.style.transform = 'rotate(-90deg)';
+        } else if (placement === 'left'){
+          const tailOffset = clamp((charCenterY - targetTop) - tailHalfHeight, 24, groupHeight - tailHeight - 24);
+          bubbleTail.style.top = `${tailOffset}px`;
+          bubbleTail.style.bottom = 'auto';
+          bubbleTail.style.left = `${bubbleWidth - 12}px`;
+          bubbleTail.style.transformOrigin = '0% 50%';
+          bubbleTail.style.transform = 'rotate(90deg)';
+        } else {
+          const tailOffset = clamp((charCenterX - targetLeft) - tailHalfWidth, 32, bubbleWidth - tailWidth - 32);
+          bubbleTail.style.left = `${tailOffset}px`;
+          bubbleTail.style.top = 'auto';
+          bubbleTail.style.bottom = `${-tailHeight + 12}px`;
+          bubbleTail.style.transformOrigin = '50% 0%';
+          bubbleTail.style.transform = 'rotate(0deg)';
+        }
+      } else {
+  bubbleTail.style.left = `${(bubbleWidth * 0.5) - tailHalfWidth}px`;
+        bubbleTail.style.bottom = `${-tailHeight + 12}px`;
+        bubbleTail.style.top = 'auto';
+        bubbleTail.style.transformOrigin = '50% 0%';
+        bubbleTail.style.transform = 'rotate(0deg)';
+        if (targetLeft + bubbleWidth > containerRect.width - 24){
+          targetLeft = containerRect.width - bubbleWidth - 24;
+        }
+        if (targetTop < 24) targetTop = 24;
+        if (targetTop + groupHeight > containerRect.height - 24){
+          targetTop = containerRect.height - groupHeight - 24;
+        }
+      }
+
+      bubbleGroup.style.left = `${targetLeft}px`;
+      bubbleGroup.style.top = `${targetTop}px`;
+    }catch(err){ console.warn('positionDialogueBubble failed', err); }
+  }
+
+  window.addEventListener('resize', positionDialogueBubble);
+
+  function resolveAutoAdvanceDelay(node){
+    if (!node) return 520;
+    const rawDelay = node.autoNextDelay !== undefined ? Number(node.autoNextDelay) : Number(node.autoAdvanceDelay);
+    if (Number.isFinite(rawDelay)) return Math.max(0, rawDelay);
+    return 520;
+  }
 
   if (!scene || !scene.nodes){
-    textBox.textContent = 'No scene found — fallback renderer. Přidej scenes/scene1.json.';
+    setSpeakerText('');
+    setDialogText('No scene found — fallback renderer. Přidej scenes/scene1.json.');
+    bubbleTransitionIn(()=>{});
     return;
   }
 
   let current = 'start';
+  let dialogueState = null;
+
+  const skipTarget = (()=>{
+    if (!scene || !scene.nodes) return null;
+    if (scene.nodes.vchod_do_skoly_tom_odchazi) return 'vchod_do_skoly_tom_odchazi';
+    const keys = Object.keys(scene.nodes).filter(id => id && id !== 'start');
+    return keys.length ? keys[keys.length - 1] : null;
+  })();
+  if (skipTarget){
+    const skipBtn = document.createElement('button');
+    skipBtn.textContent = 'Skip scény';
+    skipBtn.title = 'Dočasně přeskočit na cílovou scénu';
+    skipBtn.style.position = 'absolute';
+    skipBtn.style.left = '10px';
+    skipBtn.style.top = '52px';
+    skipBtn.style.zIndex = '60';
+    skipBtn.style.padding = '6px 12px';
+    skipBtn.style.background = 'rgba(0,0,0,0.35)';
+    skipBtn.style.border = '1px solid rgba(255,255,255,0.25)';
+    skipBtn.style.borderRadius = '6px';
+    skipBtn.style.color = '#fff';
+    skipBtn.style.cursor = 'pointer';
+    skipBtn.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      current = skipTarget;
+      renderNode(skipTarget);
+    });
+    container.appendChild(skipBtn);
+  }
+
+  container.addEventListener('click', (ev)=>{
+    if (!dialogueState || dialogueState.done) return;
+    if (ev.defaultPrevented) return;
+    if (typeof ev.button === 'number' && ev.button !== 0) return;
+    if (dialogueState && typeof dialogueState.advance === 'function'){
+      dialogueState.advance();
+    }
+  });
 
   function updateInventoryUI(){
     const list = inventoryUI.querySelector('#inv-list');
@@ -163,9 +716,12 @@ export function initFallback(scene){
       try{
         n.style.transition = 'transform 260ms ease, opacity 260ms ease';
         n.style.transformOrigin = '50% 50%';
-        n.style.transform = 'scale(0.3)';
+        setTransformPart(n, 'effect', 'scale(0.3)');
         n.style.opacity = '0';
-        setTimeout(()=>{ try{ n.remove(); }catch(e){} }, 300);
+        setTimeout(()=>{
+          setTransformPart(n, 'effect', '');
+          try{ n.remove(); }catch(e){}
+        }, 300);
       }catch(e){ try{ n.remove(); }catch(_){} }
     });
     persistState();
@@ -192,7 +748,7 @@ export function initFallback(scene){
   }
 
   // character rendering based on state.vars.clothes
-  // renderCharacter optionally accepts a character spec from the node
+  // renderCharacter optionally accepts one or many specs from the node
   // spec fields: visible (bool), img (string), clothes (string), x, y, anchor, width, height, z
   let currentNodeCharSpec = null;
   // map logical clothes values to image files (easy to extend)
@@ -202,57 +758,85 @@ export function initFallback(scene){
     'dressed': 'assets/images/mc.png'
   };
 
+  function resolveCharacterSource(spec){
+    // determine source: priority - spec.img -> spec.clothes -> state.vars.clothes -> default
+    const stateCloth = state.vars.clothes;
+    const specCloth = spec && spec.clothes;
+    const nodeClothesMap = spec && spec.clothesMap;
+    const nodeDefault = spec && spec.defaultClothes;
+    if (nodeClothesMap){
+      if (stateCloth && nodeClothesMap[stateCloth]) return nodeClothesMap[stateCloth];
+      if (specCloth && nodeClothesMap[specCloth]) return nodeClothesMap[specCloth];
+      if (nodeDefault && nodeClothesMap[nodeDefault]) return nodeClothesMap[nodeDefault];
+    }
+    if (spec && spec.img) return spec.img;
+    if (stateCloth && CLOTHES_MAP[stateCloth]) return CLOTHES_MAP[stateCloth];
+    if (specCloth && CLOTHES_MAP[specCloth]) return CLOTHES_MAP[specCloth];
+    if (nodeDefault && CLOTHES_MAP[nodeDefault]) return CLOTHES_MAP[nodeDefault];
+    return CLOTHES_MAP['dressed'];
+  }
+
   function renderCharacter(spec){
     currentNodeCharSpec = spec || null;
-    // only render a character when the node provides a character spec
     charLayer.innerHTML = '';
-    if (!spec) return;
-    // if node explicitly hides character
-    if (spec.visible === false) return;
-    // determine source: priority - spec.img -> spec.clothes -> state.vars.clothes -> default
-  // prefer the current state variable first (so setVar('clothes') overrides node default)
-  const stateCloth = state.vars.clothes;
-  const specCloth = spec && spec.clothes;
-  const nodeClothesMap = spec && spec.clothesMap;
-  const nodeDefault = spec && spec.defaultClothes;
-  let src = null;
-  // resolution order (highest priority first):
-  // 1) node.clothesMap[state.vars.clothes]
-  // 2) global CLOTHES_MAP[state.vars.clothes]
-  // 3) node.clothesMap[spec.clothes]
-  // 4) global CLOTHES_MAP[spec.clothes]
-  // 5) node.img
-  // 6) node.clothesMap[node.defaultClothes] or global CLOTHES_MAP[node.defaultClothes]
-  // 7) fallback default
-  if (stateCloth && nodeClothesMap && nodeClothesMap[stateCloth]) src = nodeClothesMap[stateCloth];
-  else if (stateCloth && CLOTHES_MAP[stateCloth]) src = CLOTHES_MAP[stateCloth];
-  else if (specCloth && nodeClothesMap && nodeClothesMap[specCloth]) src = nodeClothesMap[specCloth];
-  else if (specCloth && CLOTHES_MAP[specCloth]) src = CLOTHES_MAP[specCloth];
-  else if (spec && spec.img) src = spec.img;
-  else if (nodeDefault && nodeClothesMap && nodeClothesMap[nodeDefault]) src = nodeClothesMap[nodeDefault];
-  else if (nodeDefault && CLOTHES_MAP[nodeDefault]) src = CLOTHES_MAP[nodeDefault];
-  else src = CLOTHES_MAP['dressed'];
-    if (!src) return;
-    const el = document.createElement('img');
-    el.src = src;
-    el.style.position = 'absolute';
-    // position
-    if (spec && spec.x) el.style.left = parseCoord(spec.x, false);
-    else el.style.left = '50%';
-    if (spec && spec.y) el.style.top = parseCoord(spec.y, true);
-    else el.style.bottom = '6%';
-    // sizing
-    if (spec && spec.width) el.style.width = (typeof spec.width === 'number' ? spec.width + 'px' : spec.width);
-    else el.style.width = '28%';
-    if (spec && spec.height) el.style.height = (typeof spec.height === 'number' ? spec.height + 'px' : spec.height);
-    el.style.maxWidth = '360px';
-    el.style.zIndex = (spec && spec.z) ? String(spec.z) : '6';
-    el.style.pointerEvents = 'none';
-    el.style.transition = 'opacity 240ms ease, transform 240ms ease';
-    // anchor
-    if (spec && spec.anchor) applyAnchor(el, spec.anchor);
-    else applyAnchor(el, '50% 100%');
-    charLayer.appendChild(el);
+    speakerTargets.clear();
+    if (!spec){
+      activeSpeakerKey = null;
+      return;
+    }
+    const specs = Array.isArray(spec) ? spec : [spec];
+    specs.forEach((entry)=>{
+      if (!entry || entry.visible === false) return;
+      const src = resolveCharacterSource(entry);
+      if (!src) return;
+      const el = document.createElement('img');
+      el.src = src;
+      el.style.position = 'absolute';
+      // position
+      if (entry && entry.x !== undefined) el.style.left = parseCoord(entry.x, false);
+      else el.style.left = '50%';
+      if (entry && entry.y !== undefined) el.style.top = parseCoord(entry.y, true);
+      else el.style.bottom = '6%';
+      // sizing
+      if (entry && entry.width) el.style.width = (typeof entry.width === 'number' ? entry.width + 'px' : entry.width);
+      else el.style.width = '28%';
+      if (entry && entry.height) el.style.height = (typeof entry.height === 'number' ? entry.height + 'px' : entry.height);
+      el.style.maxWidth = '360px';
+      el.style.zIndex = (entry && entry.z) ? String(entry.z) : '6';
+      el.style.pointerEvents = 'none';
+      el.style.transition = 'opacity 240ms ease, transform 240ms ease';
+      if (entry && entry.className) el.className = entry.className;
+      if (entry && entry.dataset){
+        Object.entries(entry.dataset).forEach(([key, value])=>{
+          if (value !== undefined) el.dataset[key] = String(value);
+        });
+      }
+      if (entry && entry.id) el.id = entry.id;
+      if (entry && entry.opacity !== undefined) el.style.opacity = String(entry.opacity);
+      if (entry && entry.filter) el.style.filter = entry.filter;
+      if (entry && entry.transform) setTransformPart(el, 'custom', entry.transform);
+      // anchor
+      if (entry && entry.anchor) applyAnchor(el, entry.anchor);
+      else applyAnchor(el, '50% 100%');
+      const speakerKeys = [];
+      if (entry && entry.bubbleId) speakerKeys.push(entry.bubbleId);
+      if (entry && entry.speakerId) speakerKeys.push(entry.speakerId);
+      if (entry && entry.speaker) speakerKeys.push(entry.speaker);
+      if (entry && entry.name) speakerKeys.push(entry.name);
+      if (entry && entry.id) speakerKeys.push(entry.id);
+      if (entry && entry.aliases && Array.isArray(entry.aliases)) speakerKeys.push(...entry.aliases);
+      if (entry && entry.bubbleTarget) speakerKeys.push(entry.bubbleTarget);
+      if (speakerKeys.length){
+        registerSpeakerKeys(speakerKeys, el);
+        el.dataset.speakerKeys = speakerKeys.map(v=>String(v)).join(' ');
+      }
+      charLayer.appendChild(el);
+      if (el.complete){
+        setTimeout(positionDialogueBubble, 20);
+      } else {
+        el.addEventListener('load', ()=>{ setTimeout(positionDialogueBubble, 10); }, { once: true });
+      }
+    });
   }
 
   function clearObjects(){
@@ -311,12 +895,17 @@ export function initFallback(scene){
   }
 
   function applyAnchor(el, anchor){
-    if (!anchor) return;
+    if (!el) return;
+    if (!anchor){
+      setTransformPart(el, 'base', '');
+      el.style.transformOrigin = '';
+      return;
+    }
     const parts = String(anchor).split(/\s+/);
     const ax = parts[0] || '0%';
     const ay = parts[1] || '0%';
     // convert "50% 100%" => translate(-50%,-100%)
-    el.style.transform = `translate(-${ax}, -${ay})`;
+    setTransformPart(el, 'base', `translate(-${ax}, -${ay})`);
     el.style.transformOrigin = '0 0';
   }
 
@@ -359,21 +948,25 @@ export function initFallback(scene){
           if (action.failText){
             // show failText in the main dialog box temporarily (better UX than toast)
             try{
-              const prevText = textBox.textContent;
-              const prevSpeaker = nameBox.textContent;
-              // optionally show object name as speaker if available
-              nameBox.textContent = (obj && obj.name) ? obj.name : prevSpeaker;
-              textBox.textContent = action.failText;
+              const prevText = getDialogText();
+              bubbleSwap(()=>{
+                setSpeakerText('');
+                setDialogText(action.failText);
+              });
               const timeout = (action.failTimeout && Number(action.failTimeout)) ? Number(action.failTimeout) : 1400;
               setTimeout(()=>{
                 // restore the node text if we're still on the same node
                 if (current && scene && scene.nodes && scene.nodes[current]){
                   const node = scene.nodes[current];
-                  nameBox.textContent = node.speaker || '';
-                  textBox.textContent = node.text || '';
+                  bubbleSwap(()=>{
+                    setSpeakerText('');
+                    setDialogText(node.text || '');
+                  });
                 } else {
-                  nameBox.textContent = prevSpeaker;
-                  textBox.textContent = prevText;
+                  bubbleSwap(()=>{
+                    setSpeakerText('');
+                    setDialogText(prevText);
+                  });
                 }
               }, timeout);
             }catch(e){
@@ -425,9 +1018,12 @@ export function initFallback(scene){
           if (el){
             el.style.transition = 'transform 260ms ease, opacity 260ms ease';
             el.style.transformOrigin = '50% 50%';
-            el.style.transform = 'scale(0.3)';
+            setTransformPart(el, 'effect', 'scale(0.3)');
             el.style.opacity = '0';
-            setTimeout(()=>{ try{ el.remove(); }catch(e){} }, 300);
+            setTimeout(()=>{
+              setTransformPart(el, 'effect', '');
+              try{ el.remove(); }catch(e){}
+            }, 300);
           }
           // also remove any hitbox with same data-obj-id
           const hb = objectLayer.querySelectorAll(`[data-obj-id="${obj.id}"]`);
@@ -446,6 +1042,31 @@ export function initFallback(scene){
       case 'playSFX':
         playSFX(action.src || action);
         break;
+      case 'accelerate':
+        try{
+          const baseId = action.targetId || (obj && obj.id) || action.id;
+          const includeSelf = action.includeSelf !== false;
+          const baseOpts = {
+            speed: (action.speed !== undefined ? action.speed : 0.25),
+            ms: action.ms,
+            restoreSequence: action.restoreSequence,
+            finalSpeed: action.finalSpeed,
+            follow: action.alignWith || baseId
+          };
+          let targetList = action.targets;
+          if (!targetList){
+            targetList = includeSelf && baseId ? [baseId] : [];
+          } else if (includeSelf && baseId){
+            const includesBase = (Array.isArray(targetList) ? targetList : [targetList]).some(entry=>{
+              if (typeof entry === 'string') return entry === baseId;
+              return entry && typeof entry === 'object' && (entry.id === baseId || entry.target === baseId || entry.objId === baseId);
+            });
+            if (!includesBase) targetList = Array.isArray(targetList) ? targetList.concat(baseId) : [targetList, baseId];
+          }
+          accelerateTargets(targetList, baseOpts);
+          if (action.playSFX) playSFX(action.playSFX);
+        }catch(e){ console.warn('accelerate action failed', e); }
+        break;
       case 'inspect':
         // simple inspection: show a temporary modal text
         alert(action.text || obj.name || 'Inspect');
@@ -453,10 +1074,13 @@ export function initFallback(scene){
       case 'say':
         // temporarily show text in the dialog box
         try{
-          const prevText = textBox.textContent;
-          const prevSpeaker = nameBox.textContent;
-          nameBox.textContent = action.speaker || (obj && obj.name) || prevSpeaker;
-          textBox.textContent = action.text || '';
+          const prevText = getDialogText();
+          const applySay = ()=>{
+            setSpeakerText('');
+            setDialogText(action.text || '');
+          };
+          bubbleSwap(applySay);
+          if (action.sfx) playSFX(action.sfx);
           const timeout = (action.timeout && Number(action.timeout)) ? Number(action.timeout) : 1400;
           if (action.wait) {
             // if wait is true, don't auto-restore (caller will navigate)
@@ -464,11 +1088,15 @@ export function initFallback(scene){
             setTimeout(()=>{
               if (current && scene && scene.nodes && scene.nodes[current]){
                 const node = scene.nodes[current];
-                nameBox.textContent = node.speaker || '';
-                textBox.textContent = node.text || '';
+                bubbleSwap(()=>{
+                  setSpeakerText('');
+                  setDialogText(node.text || '');
+                });
               } else {
-                nameBox.textContent = prevSpeaker;
-                textBox.textContent = prevText;
+                bubbleSwap(()=>{
+                  setSpeakerText('');
+                  setDialogText(prevText);
+                });
               }
             }, timeout);
           }
@@ -477,6 +1105,198 @@ export function initFallback(scene){
       default:
         console.log('Unknown action', action);
     }
+  }
+
+  function adjustElementSpeed(targetEl, targetId, factorOrOpts){
+    let rotationData = null;
+    try{
+      const el = targetEl || (targetId ? objectLayer.querySelector(`[data-obj-id="${targetId}"]`) : null);
+      if (!el) return false;
+      const animData = el.__animData;
+      rotationData = el.__rotationData;
+      if (!animData && !rotationData) return false;
+      let factor = factorOrOpts;
+      let alignFraction = null;
+      if (factorOrOpts && typeof factorOrOpts === 'object'){
+        if (factorOrOpts.factor !== undefined) factor = factorOrOpts.factor;
+        if (factorOrOpts.alignFraction !== undefined && factorOrOpts.alignFraction !== null){
+          const af = Number(factorOrOpts.alignFraction);
+          if (Number.isFinite(af)) alignFraction = Math.min(1, Math.max(0, af));
+        }
+      }
+      const safeFactor = (factor && Number.isFinite(factor) && factor > 0) ? Number(factor) : 1;
+      if (animData && animData.usedTransform){
+        const parentRect = (animData.parentRect && animData.parentRect.width)
+          ? animData.parentRect
+          : ((el.offsetParent && typeof el.offsetParent.getBoundingClientRect === 'function')
+            ? el.offsetParent.getBoundingClientRect()
+            : objectLayer.getBoundingClientRect());
+        const currentRect = el.getBoundingClientRect();
+        const endRect = animData.endRect;
+        if (!endRect || !currentRect || !parentRect) return false;
+        const targetX = endRect.left - parentRect.left;
+        const targetY = endRect.top - parentRect.top;
+        const currentX = currentRect.left - parentRect.left;
+        const currentY = currentRect.top - parentRect.top;
+        const deltaX = currentX - targetX;
+        const deltaY = currentY - targetY;
+        const totalX = (animData.startRect.left - parentRect.left) - targetX;
+        const totalY = (animData.startRect.top - parentRect.top) - targetY;
+  const remainingDist = Math.hypot(deltaX, deltaY);
+  const totalDist = Math.max(1e-5, Math.hypot(totalX, totalY));
+  const computedFraction = Math.min(1, Math.max(0, remainingDist / totalDist));
+  const fraction = (alignFraction !== null) ? Math.min(1, Math.max(0, alignFraction)) : computedFraction;
+        const baseDuration = animData.baseDuration || animData.duration || 1000;
+        const remainingDuration = Math.max(0, baseDuration * fraction);
+        const targetDuration = Math.max(50, remainingDuration * safeFactor);
+        setTransformPart(el, 'animation', `translate3d(${deltaX}px, ${deltaY}px, 0)`);
+        void el.offsetWidth;
+        el.style.transition = composeTransition(el.dataset.baseTransition || '', `${targetDuration}ms linear`);
+        el.style.willChange = 'transform';
+        requestAnimationFrame(()=>{ setTransformPart(el, 'animation', 'translate3d(0, 0, 0)'); });
+        animData.parentRect = parentRect;
+        if (rotationData) rotationData.speedFactor = safeFactor;
+        return true;
+      } else if (animData){
+        if (typeof window === 'undefined' || !window.getComputedStyle) return false;
+        const parentRect = (animData.parentRect && animData.parentRect.width)
+          ? animData.parentRect
+          : ((el.offsetParent && typeof el.offsetParent.getBoundingClientRect === 'function')
+            ? el.offsetParent.getBoundingClientRect()
+            : objectLayer.getBoundingClientRect());
+        const endRect = animData.endRect;
+        if (!endRect) return false;
+        const computedStyle = window.getComputedStyle(el);
+        const currentLeft = parseFloat(computedStyle.left);
+        const currentTop = parseFloat(computedStyle.top);
+        const targetLeft = endRect.left - parentRect.left;
+        const targetTop = endRect.top - parentRect.top;
+        el.style.transition = 'none';
+        if (!Number.isNaN(currentLeft)) el.style.left = `${currentLeft}px`;
+        if (!Number.isNaN(currentTop)) el.style.top = `${currentTop}px`;
+        void el.offsetWidth;
+        const baseDuration = animData.baseDuration || animData.duration || 1000;
+        const totalLeft = animData.startRect.left - endRect.left;
+        const totalTop = animData.startRect.top - endRect.top;
+        const remainingLeft = Number.isNaN(currentLeft) ? 0 : Math.abs(currentLeft - targetLeft);
+        const remainingTop = Number.isNaN(currentTop) ? 0 : Math.abs(currentTop - targetTop);
+  const totalDist = Math.max(1e-5, Math.hypot(totalLeft, totalTop));
+  const remainingDist = Math.hypot(remainingLeft, remainingTop);
+  const computedFraction = Math.min(1, Math.max(0, remainingDist / totalDist));
+  const fraction = (alignFraction !== null) ? Math.min(1, Math.max(0, alignFraction)) : computedFraction;
+        const targetDuration = Math.max(50, (baseDuration * fraction) * safeFactor);
+        el.style.transition = [`left ${targetDuration}ms linear`, `top ${targetDuration}ms linear`].join(', ');
+        requestAnimationFrame(()=>{
+          el.style.left = `${targetLeft}px`;
+          el.style.top = `${targetTop}px`;
+        });
+        animData.parentRect = parentRect;
+        if (rotationData) rotationData.speedFactor = safeFactor;
+        return true;
+      }
+      if (rotationData){
+        rotationData.speedFactor = safeFactor;
+        return true;
+      }
+    }catch(err){ console.warn('adjustElementSpeed failed', err); }
+    return !!(rotationData);
+  }
+
+  // accelerate an element mid-animation and optionally schedule smooth restoration
+  function accelerateObject(targetEl, objId, opts){
+    try{
+      const id = objId || (targetEl && targetEl.dataset && targetEl.dataset.objId);
+      if (!id) return;
+      const key = 'speed_' + id;
+      const rawSpeed = (opts && opts.speed !== undefined) ? Number(opts.speed) : 0.25;
+      const speed = (Number.isFinite(rawSpeed) && rawSpeed > 0) ? rawSpeed : 0.25;
+      const restoreAfter = (opts && opts.ms !== undefined) ? Number(opts.ms) : 2200;
+      const restoreSeqRaw = (opts && opts.restoreSequence);
+      const restoreSequence = Array.isArray(restoreSeqRaw)
+        ? restoreSeqRaw.filter(step => step && (step.ms !== undefined || step.speed !== undefined))
+        : [];
+      const finalSpeedRaw = (opts && opts.finalSpeed !== undefined) ? Number(opts.finalSpeed) : 1;
+      const finalSpeed = (Number.isFinite(finalSpeedRaw) && finalSpeedRaw > 0) ? finalSpeedRaw : 1;
+    const followId = opts && opts.follow;
+
+    if (!accelerateObject._timers) accelerateObject._timers = {};
+    if (!accelerateObject._finalSpeeds) accelerateObject._finalSpeeds = {};
+    accelerateObject._finalSpeeds[key] = finalSpeed;
+    const timers = accelerateObject._timers;
+      if (timers[key]){ clearTimeout(timers[key]); delete timers[key]; }
+
+      const applySpeed = (value)=>{
+        const val = (Number.isFinite(value) && value > 0) ? value : 1;
+        if (!state.vars) state.vars = {};
+        state.vars[key] = val;
+        let alignFraction = null;
+        if (followId){
+          const followEl = objectLayer.querySelector(`[data-obj-id="${followId}"]`);
+          const progress = getAnimationProgress(followEl);
+          if (progress && progress.fraction !== undefined) alignFraction = progress.fraction;
+        }
+        const applied = adjustElementSpeed(targetEl, id, { factor: val, alignFraction })
+          || adjustElementSpeed(null, id, { factor: val, alignFraction });
+        if (!applied && typeof requestAnimationFrame === 'function'){
+          requestAnimationFrame(()=>{
+            adjustElementSpeed(null, id, { factor: val, alignFraction });
+          });
+        }
+      };
+
+      applySpeed(speed);
+
+      if (restoreSequence.length){
+        const runStep = (idx)=>{
+          if (idx >= restoreSequence.length){
+            applySpeed(finalSpeed);
+            delete timers[key];
+            return;
+          }
+          const step = restoreSequence[idx];
+          const delay = Number(step.ms);
+          const nextSpeedRaw = (step && step.speed !== undefined) ? Number(step.speed) : finalSpeed;
+          const nextSpeed = (Number.isFinite(nextSpeedRaw) && nextSpeedRaw > 0) ? nextSpeedRaw : finalSpeed;
+          timers[key] = setTimeout(()=>{
+            applySpeed(nextSpeed);
+            runStep(idx + 1);
+          }, Number.isFinite(delay) && delay >= 0 ? delay : 0);
+        };
+        runStep(0);
+      } else if (Number.isFinite(restoreAfter) && restoreAfter > 0){
+        timers[key] = setTimeout(()=>{
+          applySpeed(finalSpeed);
+          delete timers[key];
+        }, restoreAfter);
+      } else {
+        applySpeed(finalSpeed);
+      }
+    }catch(e){ console.warn('accelerateObject failed', e); }
+  }
+
+  function accelerateTargets(targets, baseOpts){
+    if (!targets) return;
+    const list = Array.isArray(targets) ? targets.slice() : [targets];
+    const seen = new Set();
+    list.forEach(entry=>{
+      let id = null;
+      const opts = Object.assign({}, baseOpts);
+      if (typeof entry === 'string'){
+        id = entry;
+      } else if (entry && typeof entry === 'object'){
+        id = entry.id || entry.target || entry.objId || entry.obj || null;
+        if (entry.speed !== undefined) opts.speed = entry.speed;
+        if (entry.ms !== undefined) opts.ms = entry.ms;
+        if (entry.restoreSequence) opts.restoreSequence = entry.restoreSequence;
+        if (entry.finalSpeed !== undefined) opts.finalSpeed = entry.finalSpeed;
+        if (entry.follow === false) delete opts.follow;
+        else if (entry.follow) opts.follow = entry.follow;
+      }
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      const el = objectLayer.querySelector(`[data-obj-id="${id}"]`);
+      accelerateObject(el, id, opts);
+    });
   }
 
   // context menu for using inventory items on objects
@@ -516,8 +1336,21 @@ export function initFallback(scene){
   }
 
   function renderNode(id){
-    const node = scene.nodes[id];
-    if (!node){ textBox.textContent = 'Node "'+id+'" not found.'; return; }
+    if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+    if (id) current = id;
+  const node = scene.nodes[id];
+    if (!node){
+      bubbleSwap(()=>{
+        setSpeakerText('');
+        setDialogText('Node "'+id+'" not found.');
+      });
+      return;
+    }
+  bubbleHasContent = false;
+  if (bubbleSwapTimer){ clearTimeout(bubbleSwapTimer); bubbleSwapTimer = null; }
+    const captionValue = (node.sceneCaption !== undefined) ? node.sceneCaption
+      : (node.caption !== undefined ? node.caption : '');
+    showSceneCaption(captionValue);
     // background handling: if node.bg present, set image src
     if (node.bg){
       bgEl.src = node.bg;
@@ -548,11 +1381,20 @@ export function initFallback(scene){
       if (obj.height) el.style.height = (typeof obj.height === 'number' ? obj.height + 'px' : obj.height);
       if (obj.z) el.style.zIndex = String(obj.z);
       // hover/interactive styling
-      el.style.transition = 'transform 160ms ease, filter 160ms ease, opacity 220ms ease';
+      const baseTransition = 'transform 160ms ease, filter 160ms ease, opacity 220ms ease';
+      el.style.transition = baseTransition;
+      el.dataset.baseTransition = baseTransition;
       if (obj.interactive) {
         el.style.cursor = 'pointer';
-        el.addEventListener('mouseenter', ()=>{ el.style.transform = 'scale(1.06)'; el.style.filter = 'drop-shadow(0 10px 18px rgba(0,0,0,.6))'; });
-        el.addEventListener('mouseleave', ()=>{ el.style.transform = ''; el.style.filter = ''; });
+        const allowHoverScale = !obj.animate;
+        el.addEventListener('mouseenter', ()=>{
+          if (allowHoverScale) setTransformPart(el, 'hover', 'scale(1.06)');
+          el.style.filter = 'drop-shadow(0 10px 18px rgba(0,0,0,.6))';
+        });
+        el.addEventListener('mouseleave', ()=>{
+          if (allowHoverScale) setTransformPart(el, 'hover', '');
+          el.style.filter = '';
+        });
       }
       applyAnchor(el, obj.anchor);
       // hitbox support
@@ -577,61 +1419,358 @@ export function initFallback(scene){
         el.addEventListener('contextmenu', (ev)=>{ ev.preventDefault(); showUseMenu(obj, ev.clientX, ev.clientY); });
       }
       objectLayer.appendChild(el);
+      
       // support simple animation instructions on objects (e.g. move across screen)
       if (obj.animate && obj.animate.type === 'move'){
         try{
-          const dur = (obj.animate.duration && Number(obj.animate.duration)) ? Number(obj.animate.duration) : 3000;
-          // allow from/to to be strings like '10%' or numbers
-          const from = obj.animate.from || { x: parseCoord(obj.x,false), y: parseCoord(obj.y,true) };
-          const to = obj.animate.to || { x: '0%', y: parseCoord(obj.y,true) };
-          // apply starting coordinates
-          if (from.x) el.style.left = (typeof from.x === 'string' ? from.x : parseCoord(from.x,false));
-          if (from.y) el.style.top = (typeof from.y === 'string' ? from.y : parseCoord(from.y,true));
-          // force reflow
-          void el.offsetWidth;
-          el.style.transition = `left ${dur}ms linear, top ${dur}ms linear`;
-          // trigger move on next tick
-          setTimeout(()=>{
-            if (to.x) el.style.left = (typeof to.x === 'string' ? to.x : parseCoord(to.x,false));
-            if (to.y) el.style.top = (typeof to.y === 'string' ? to.y : parseCoord(to.y,true));
-          }, 20);
-          // when animation ends, run onEnd action if present
-          const onEnd = ()=>{
-            el.removeEventListener('transitionend', onEnd);
-            if (obj.animate && obj.animate.onEnd){
-              // support simple action shapes: { type: 'goto', target: 'nodeId' } or array
-              try{ handleAction(obj.animate.onEnd, obj); }catch(e){ console.warn('animate onEnd failed', e); }
+          const baseDur = (obj.animate.duration && Number(obj.animate.duration)) ? Number(obj.animate.duration) : 3000;
+          const speedKey = 'speed_' + (obj.id || '');
+          const dur = baseDur * ((state.vars && state.vars[speedKey] !== undefined) ? Number(state.vars[speedKey]) : 1);
+          const baseTransition = el.dataset.baseTransition || '';
+          const restoreTransition = ()=>{
+            if (el.dataset && Object.prototype.hasOwnProperty.call(el.dataset, 'baseTransition')){
+              el.style.transition = el.dataset.baseTransition;
+            } else {
+              el.style.transition = '';
             }
           };
-          el.addEventListener('transitionend', onEnd);
+
+          const cssValue = (val, isY)=>{
+            if (val === undefined || val === null) return null;
+            return (typeof val === 'string') ? val : parseCoord(val, isY);
+          };
+
+          const defaultX = parseCoord(obj.x, false);
+          const defaultY = parseCoord(obj.y, true);
+
+          const fromRaw = (obj.animate.from && typeof obj.animate.from === 'object') ? obj.animate.from : {};
+          const toRaw = (obj.animate.to && typeof obj.animate.to === 'object') ? obj.animate.to : {};
+
+          const fromCssX = cssValue(Object.prototype.hasOwnProperty.call(fromRaw, 'x') ? fromRaw.x : obj.x, false) || defaultX;
+          const fromCssY = cssValue(Object.prototype.hasOwnProperty.call(fromRaw, 'y') ? fromRaw.y : obj.y, true) || defaultY;
+          const toCssX = cssValue(Object.prototype.hasOwnProperty.call(toRaw, 'x') ? toRaw.x : obj.x, false) || defaultX;
+          const toCssY = cssValue(Object.prototype.hasOwnProperty.call(toRaw, 'y') ? toRaw.y : obj.y, true) || defaultY;
+
+          const baseParts = (baseTransition || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .filter(s => !s.toLowerCase().startsWith('transform'));
+
+          const fallbackPositionAnimation = ()=>{
+            setTransformPart(el, 'animation', '');
+            el.style.willChange = '';
+            el.style.transition = 'none';
+            // position at start and measure both start/end so we can compute remaining progress on click
+            el.style.left = fromCssX;
+            el.style.top = fromCssY;
+            void el.offsetWidth;
+            const startRectFB = el.getBoundingClientRect();
+            // measure end rect by placing it at the target (no transition)
+            el.style.left = toCssX;
+            el.style.top = toCssY;
+            void el.offsetWidth;
+            const endRectFB = el.getBoundingClientRect();
+            // revert to start
+            el.style.left = fromCssX;
+            el.style.top = fromCssY;
+            void el.offsetWidth;
+            const transitions = [`left ${dur}ms linear`, `top ${dur}ms linear`].concat(baseParts);
+            el.style.transition = transitions.join(', ');
+            const fallbackParentRect = (el.offsetParent && typeof el.offsetParent.getBoundingClientRect === 'function')
+              ? el.offsetParent.getBoundingClientRect()
+              : objectLayer.getBoundingClientRect();
+            try{ el.__animData = {
+              usedTransform: false,
+              startRect: startRectFB,
+              endRect: endRectFB,
+              duration: dur,
+              baseDuration: baseDur,
+              parentRect: fallbackParentRect
+            }; }catch(e){}
+            requestAnimationFrame(()=>{
+              el.style.left = toCssX;
+              el.style.top = toCssY;
+            });
+            const onEnd = (evt)=>{
+              if (!evt || (evt.propertyName !== 'left' && evt.propertyName !== 'top')) return;
+              el.removeEventListener('transitionend', onEnd);
+              try{ el.__animData = null; }catch(e){}
+              restoreTransition();
+              try{
+                const objId = obj && obj.id ? obj.id : null;
+                if (objId){
+                  const sk = 'speed_' + objId;
+                  if (accelerateObject && accelerateObject._timers && accelerateObject._timers[sk]){
+                    clearTimeout(accelerateObject._timers[sk]);
+                    delete accelerateObject._timers[sk];
+                  }
+                  const finalMap = accelerateObject && accelerateObject._finalSpeeds;
+                  if (finalMap && finalMap[sk] !== undefined){
+                    if (state && state.vars) state.vars[sk] = finalMap[sk];
+                    delete finalMap[sk];
+                  } else if (state && state.vars && state.vars[sk] === undefined){
+                    state.vars[sk] = 1;
+                  }
+                }
+              }catch(e){}
+              if (obj.animate && obj.animate.onEnd){
+                try{ handleAction(obj.animate.onEnd, obj); }catch(e){ console.warn('animate onEnd failed', e); }
+              }
+            };
+            el.addEventListener('transitionend', onEnd);
+          };
+
+          let usedTransform = false;
+          try{
+            const parentRect = (el.offsetParent && typeof el.offsetParent.getBoundingClientRect === 'function')
+              ? el.offsetParent.getBoundingClientRect()
+              : objectLayer.getBoundingClientRect();
+
+            if (parentRect.width || parentRect.height){
+              el.style.transition = 'none';
+              setTransformPart(el, 'animation', '');
+              el.style.left = fromCssX;
+              el.style.top = fromCssY;
+              void el.offsetWidth;
+              const startRect = el.getBoundingClientRect();
+              el.style.left = toCssX;
+              el.style.top = toCssY;
+              void el.offsetWidth;
+              const endRect = el.getBoundingClientRect();
+
+              const deltaX = (startRect.left - parentRect.left) - (endRect.left - parentRect.left);
+              const deltaY = (startRect.top - parentRect.top) - (endRect.top - parentRect.top);
+
+              if (Number.isFinite(deltaX) && Number.isFinite(deltaY)){
+                try{ el.__animData = {
+                  usedTransform: true,
+                  startRect: startRect,
+                  endRect: endRect,
+                  duration: dur,
+                  baseDuration: baseDur,
+                  parentRect: parentRect
+                }; }catch(e){}
+                setTransformPart(el, 'animation', `translate3d(${deltaX}px, ${deltaY}px, 0)`);
+                void el.offsetWidth;
+                el.style.transition = composeTransition(baseTransition, `${dur}ms linear`);
+                el.style.willChange = 'transform';
+                requestAnimationFrame(()=>{
+                  setTransformPart(el, 'animation', 'translate3d(0, 0, 0)');
+                });
+                const onEnd = (evt)=>{
+                  if (evt && evt.propertyName && evt.propertyName !== 'transform') return;
+                  el.removeEventListener('transitionend', onEnd);
+                  setTransformPart(el, 'animation', '');
+                  el.style.willChange = '';
+                  try{ el.__animData = null; }catch(e){}
+                  restoreTransition();
+                  try{
+                    const objId = obj && obj.id ? obj.id : null;
+                    if (objId){
+                      const sk = 'speed_' + objId;
+                      if (accelerateObject && accelerateObject._timers && accelerateObject._timers[sk]){
+                        clearTimeout(accelerateObject._timers[sk]);
+                        delete accelerateObject._timers[sk];
+                      }
+                      const finalMap = accelerateObject && accelerateObject._finalSpeeds;
+                      if (finalMap && finalMap[sk] !== undefined){
+                        if (state && state.vars) state.vars[sk] = finalMap[sk];
+                        delete finalMap[sk];
+                      } else if (state && state.vars && state.vars[sk] === undefined){
+                        state.vars[sk] = 1;
+                      }
+                    }
+                  }catch(e){}
+                  if (obj.animate && obj.animate.onEnd){
+                    try{ handleAction(obj.animate.onEnd, obj); }catch(err){ console.warn('animate onEnd failed', err); }
+                  }
+                };
+                el.addEventListener('transitionend', onEnd);
+                usedTransform = true;
+              }
+            }
+          }catch(measureErr){
+            console.warn('transform animation measurement failed', measureErr);
+          }
+
+          if (!usedTransform){
+            fallbackPositionAnimation();
+          }
         }catch(e){ console.warn('animate failed', e); }
       }
+
+      const rotateCfg = (obj.animate && obj.animate.rotate) || obj.rotate;
+      if (rotateCfg){
+        setupRotation(el, obj, rotateCfg);
+      }
     });
-    nameBox.textContent = node.speaker || '';
-    textBox.textContent = node.text || '';
-    choicesDiv.innerHTML = '';
-    if (node.choices && node.choices.length){
-      node.choices.forEach(c=>{
-        const btn = document.createElement('button');
-        btn.textContent = c.text;
-        btn.style.marginRight = '8px';
-        btn.onclick = ()=>{ renderNode(c.target); };
-        choicesDiv.appendChild(btn);
-      });
-    } else if (node.next){
-      const btn = document.createElement('button');
-      btn.textContent = 'Pokračovat';
-      btn.onclick = ()=>{ renderNode(node.next); };
-      choicesDiv.appendChild(btn);
+    const showChoicesOrNext = (animate = false)=>{
+      dialogueState = null;
+      choicesDiv.innerHTML = '';
+      if (node.choices && node.choices.length){
+        const choiceText = node.choices.map((c, idx)=>`• ${c.text}`).join('\n');
+        const target = node.choices[0].target;
+        const applyChoices = ()=>{
+          setDialogText(choiceText);
+        };
+        if (animate && bubbleHasContent) bubbleSwap(applyChoices);
+        else bubbleTransitionIn(applyChoices);
+        dialogueState = { done: false, advance: null };
+        dialogueState.advance = ()=>{
+          if (!dialogueState || dialogueState.done) return;
+          dialogueState.done = true;
+          if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+          renderNode(target);
+        };
+        return;
+      }
+      const resolveNextTarget = (value)=>{
+        if (value === undefined || value === null) return null;
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object'){
+          if (typeof value.target === 'string') return value.target;
+          if (typeof value.id === 'string') return value.id;
+        }
+        return null;
+      };
+      const pendingNext = (node.autoNext !== undefined) ? node.autoNext : node.next;
+      const nextTarget = resolveNextTarget(pendingNext);
+      if (nextTarget){
+        const delay = resolveAutoAdvanceDelay(node);
+        const activeNodeId = current;
+        const advanceFn = ()=>{
+          if (dialogueState && dialogueState.done) return;
+          if (dialogueState) dialogueState.done = true;
+          if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+          renderNode(nextTarget);
+        };
+        dialogueState = {
+          done: false,
+          advance: ()=>{
+            advanceFn();
+          }
+        };
+        if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+        autoAdvanceTimer = setTimeout(()=>{
+          if (current !== activeNodeId) return;
+          advanceFn();
+        }, delay);
+      }
+      positionDialogueBubble();
+    };
+
+    const dialogueEntries = Array.isArray(node.dialogue)
+      ? node.dialogue.filter(entry => entry && (entry.text || entry.text === ''))
+      : [];
+
+    if (dialogueEntries.length){
+      let lastSpeaker = node.speaker || '';
+      const state = {
+        entries: dialogueEntries,
+        idx: 0,
+        done: false,
+        advance: null
+      };
+      const applyEntryContent = ()=>{
+        const entry = state.entries[state.idx];
+        const speaker = entry.speaker !== undefined ? entry.speaker
+          : (entry.name !== undefined ? entry.name
+            : (entry.character !== undefined ? entry.character : lastSpeaker));
+        const text = entry.text !== undefined ? entry.text : '';
+        lastSpeaker = speaker || '';
+        const focusCandidates = [entry.bubbleTarget, entry.speakerId, entry.character, speaker];
+        let focusKey = null;
+        for (const candidate of focusCandidates){
+          if (candidate !== undefined && candidate !== null) { focusKey = candidate; break; }
+        }
+        if (focusKey && typeof focusKey === 'object'){
+          focusKey = focusKey.id || focusKey.name || null;
+        }
+        if (focusKey !== undefined && focusKey !== null) setActiveSpeaker(focusKey);
+        setSpeakerText('');
+        setDialogText(text);
+        if (entry.sfx) playSFX(entry.sfx);
+      };
+      const showEntry = (animate)=>{
+        if (!bubbleHasContent || !animate){
+          bubbleTransitionIn(applyEntryContent);
+        } else {
+          bubbleSwap(applyEntryContent);
+        }
+      };
+      const finishDialogue = ()=>{
+        if (state.done) return;
+        state.done = true;
+        const autoTarget = (!node.choices || !node.choices.length)
+          ? (node.autoNext !== undefined ? node.autoNext : node.next)
+          : null;
+        const delay = resolveAutoAdvanceDelay(node);
+        bubbleSwap(()=>{
+          hideBubbleImmediate();
+          if (node.choices && node.choices.length){
+            showChoicesOrNext(false);
+            return;
+          }
+          const autoFn = node.onDialogueComplete;
+          if (autoFn && Array.isArray(autoFn)){
+            autoFn.forEach(action=>{ try{ handleAction(action); }catch(e){ console.warn('onDialogueComplete action failed', e); } });
+          } else if (autoFn){
+            try{ handleAction(autoFn); }catch(e){ console.warn('onDialogueComplete action failed', e); }
+          }
+          if (autoTarget){
+            const advanceFn = ()=>{
+              if (!dialogueState || dialogueState.done) return;
+              dialogueState.done = true;
+              if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+              renderNode(autoTarget);
+            };
+            dialogueState = { done: false, advance: advanceFn };
+            if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+            autoAdvanceTimer = setTimeout(()=>{ advanceFn(); }, delay);
+          } else {
+            dialogueState = null;
+          }
+        });
+      };
+      const advanceDialogue = ()=>{
+        if (state.done) return;
+        if (state.idx < state.entries.length - 1){
+          state.idx += 1;
+          showEntry(true);
+        } else {
+          finishDialogue();
+        }
+      };
+      state.advance = advanceDialogue;
+      dialogueState = state;
+      bubbleHasContent = false;
+      showEntry(false);
     } else {
-      const btn = document.createElement('button');
-      btn.textContent = 'Konec';
-      btn.onclick = ()=>{ textBox.textContent = 'Konec scény.'; choicesDiv.innerHTML = ''; };
-      choicesDiv.appendChild(btn);
+      dialogueState = null;
+      const applyStaticContent = ()=>{
+        setSpeakerText('');
+        setDialogText(node.text || '');
+        const focusCandidates = [node.bubbleTarget, node.speaker];
+        let focusKey = null;
+        for (const candidate of focusCandidates){
+          if (candidate !== undefined && candidate !== null){ focusKey = candidate; break; }
+        }
+        if (focusKey && typeof focusKey === 'object'){ focusKey = focusKey.id || focusKey.name || null; }
+        if (focusKey !== undefined && focusKey !== null) setActiveSpeaker(focusKey);
+      };
+      if (bubbleHasContent){
+        bubbleSwap(applyStaticContent);
+      } else {
+        bubbleTransitionIn(applyStaticContent);
+      }
+      showChoicesOrNext(false);
     }
-    // determine character spec for this node (not treated as an object)
-    const charSpec = node.character || null;
-    try{ renderCharacter(charSpec); }catch(e){ console.warn('renderCharacter failed', e); }
+    // determine character spec(s) for this node (not treated as objects)
+    const charSpec = (node.characters && node.characters.length) ? node.characters
+      : (node.character || null);
+  try{ renderCharacter(charSpec); }catch(e){ console.warn('renderCharacter failed', e); }
+  setTimeout(positionDialogueBubble, 20);
   }
 
   renderNode(current);
