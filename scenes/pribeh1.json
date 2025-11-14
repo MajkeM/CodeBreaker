@@ -44,7 +44,7 @@
                 { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" },
                 { "type": "remove" }
               ]
-            }
+              }
           },
           {
             "id": "closet",
@@ -79,7 +79,7 @@
                   ]
                 },
                 "failText": "Ještě nemůžu jít, potřebuji se připravit.",
-                "failTimeout": 1800,
+                "failTimeout": 3000,
                 "type": "goto",
                 "target": "cesta_do_skoly"
               }
@@ -89,8 +89,7 @@
       },
 
       "cesta_do_skoly": {
-        "speaker": "",
-        "text": "Hru vytvořil: MajkeM\nGrafika: ...\nProgramování: Matyáš\nDík za hraní!",
+
         "objects": [
           {
             "id": "tire1",
@@ -148,10 +147,7 @@
               "targets": [
                 "bus",
                 "tire1",
-                "tire2",
-                { "id": "sky", "speed": 0.68 },
-                { "id": "landscape", "speed": 0.5 },
-                { "id": "bush", "speed": 0.38 }
+                "tire2"
               ]
             },
             "animate": {

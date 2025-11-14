@@ -23,6 +23,38 @@ export function initFallback(scene){
     el.style.transform = combined;
   }
 
+  // navigate between nodes with optional transition (default: fade)
+  function navigateTo(id, opts){
+    if (!id) return;
+    // prefer explicit opts, otherwise use target node's `transition` config if present
+    let ms = 420;
+    let trans = 'fade';
+    const nodeCfg = (scene && scene.nodes && scene.nodes[id]) ? scene.nodes[id].transition : null;
+    if (nodeCfg && nodeCfg.ms !== undefined && Number(nodeCfg.ms)) ms = Number(nodeCfg.ms);
+    if (nodeCfg && nodeCfg.type) trans = String(nodeCfg.type);
+    if (opts){
+      if (opts.ms !== undefined && Number(opts.ms)) ms = Number(opts.ms);
+      if (opts.transition) trans = String(opts.transition);
+    }
+    if (trans === 'fade'){
+      try{
+        container.style.transition = `opacity ${ms}ms ease`;
+        container.style.pointerEvents = 'none';
+        container.style.opacity = '0';
+      }catch(e){ /* ignore */ }
+      setTimeout(()=>{
+        try{ renderNode(id); }catch(e){ console.warn('navigateTo render failed', e); }
+        try{
+          // fade back in
+          container.style.opacity = '1';
+          setTimeout(()=>{ try{ container.style.transition = ''; container.style.pointerEvents = 'auto'; }catch(e){} }, Math.max(60, ms));
+        }catch(e){}
+      }, ms);
+    } else {
+      renderNode(id);
+    }
+  }
+
   function getAnimationProgress(el){
     if (!el || !el.__animData) return null;
     const animData = el.__animData;
@@ -669,7 +701,7 @@ export function initFallback(scene){
     skipBtn.addEventListener('click', (ev)=>{
       ev.stopPropagation();
       current = skipTarget;
-      renderNode(skipTarget);
+      navigateTo(skipTarget);
     });
     container.appendChild(skipBtn);
   }
@@ -994,11 +1026,17 @@ export function initFallback(scene){
     switch(action.type){
       case 'remove':
         if (obj) removeObject(obj);
-        if (action.goto) renderNode(action.goto);
+        if (action.goto){
+          const gotoOpts = (action.gotoMs !== undefined || action.transition) ? { ms: action.gotoMs, transition: action.transition } : undefined;
+          navigateTo(action.goto, gotoOpts);
+        }
         if (action.playSFX) playSFX(action.playSFX);
         break;
       case 'goto':
-        if (action.target) renderNode(action.target);
+        if (action.target){
+          const gotoOpts = (action.gotoMs !== undefined || action.transition) ? { ms: action.gotoMs, transition: action.transition } : undefined;
+          navigateTo(action.target, gotoOpts);
+        }
         break;
       case 'pickup':
         // add to inventory and remove element with animation
@@ -1028,7 +1066,10 @@ export function initFallback(scene){
           // also remove any hitbox with same data-obj-id
           const hb = objectLayer.querySelectorAll(`[data-obj-id="${obj.id}"]`);
           hb.forEach(n=>{ try{ n.remove(); }catch(e){} });
-          if (action.goto) renderNode(action.goto);
+          if (action.goto){
+            const gotoOpts = (action.gotoMs !== undefined || action.transition) ? { ms: action.gotoMs, transition: action.transition } : undefined;
+            navigateTo(action.goto, gotoOpts);
+          }
           if (action.playSFX) playSFX(action.playSFX);
         }
         break;
@@ -1415,7 +1456,7 @@ export function initFallback(scene){
         hb.addEventListener('contextmenu', (ev)=>{ ev.preventDefault(); showUseMenu(obj, ev.clientX, ev.clientY); });
         objectLayer.appendChild(hb);
       } else if (obj.interactive){
-        el.addEventListener('click', ()=> handleAction(obj.action, obj));
+  el.addEventListener('click', ()=> handleAction(obj.action, obj));
         el.addEventListener('contextmenu', (ev)=>{ ev.preventDefault(); showUseMenu(obj, ev.clientX, ev.clientY); });
       }
       objectLayer.appendChild(el);
@@ -1621,7 +1662,7 @@ export function initFallback(scene){
           if (!dialogueState || dialogueState.done) return;
           dialogueState.done = true;
           if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
-          renderNode(target);
+          navigateTo(target);
         };
         return;
       }
@@ -1639,11 +1680,11 @@ export function initFallback(scene){
       if (nextTarget){
         const delay = resolveAutoAdvanceDelay(node);
         const activeNodeId = current;
-        const advanceFn = ()=>{
+          const advanceFn = ()=>{
           if (dialogueState && dialogueState.done) return;
           if (dialogueState) dialogueState.done = true;
           if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
-          renderNode(nextTarget);
+          navigateTo(nextTarget);
         };
         dialogueState = {
           done: false,
@@ -1723,7 +1764,7 @@ export function initFallback(scene){
               if (!dialogueState || dialogueState.done) return;
               dialogueState.done = true;
               if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
-              renderNode(autoTarget);
+              navigateTo(autoTarget);
             };
             dialogueState = { done: false, advance: advanceFn };
             if (autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
