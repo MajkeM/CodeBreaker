@@ -57,7 +57,8 @@
             "interactive": true,
             "action": [
               { "type": "setVar", "name": "clothes", "value": "dressed" },
-              { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" }
+              { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" },
+              { "type": "remove" }
             ]
           },
           {
