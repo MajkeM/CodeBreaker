@@ -1,0 +1,374 @@
+{
+    "nodes": {
+      "start": {
+        "speaker": "Neo",
+        "sceneCaption": "U sebe v pokoji",
+        "dialogue": [
+          { "speaker": "Neo", "text": "Nové ráno..." },
+          { "speaker": "Neo", "text": "Musím se připravit do školy, jinak přijdu pozdě." },
+          { "speaker": "Neo", "text": "Nejdřív se obléct, pak batoh." }
+        ],
+        "bg": "assets/images/pokoj.webp",
+        "character": {
+          "visible": true,
+          "img": "assets/images/mc_pyzamo.webp",
+          "x": "15%",
+          "y": "100%",
+          "anchor": "50% 100%",
+          "width": "18%",
+          "speakerId": "Neo",
+          "aliases": ["Neo"],
+          "defaultClothes": "pyjamas",
+          "clothesMap": {
+            "pyjamas": "assets/images/mc_pyzamo.webp",
+            "dressed": "assets/images/mc.webp",
+            "backpack": "assets/images/mc_batoh.webp"
+          }
+        },
+        "objects": [
+          {
+            "id": "backpack",
+            "type": "hotspot",
+            "img": "assets/images/backpack.webp",
+            "x": "72%",
+            "y": "70%",
+            "width": 115,
+            "z": 10,
+            "interactive": true,
+            "action": {
+              "condition": { "var": "clothes", "equals": "dressed" },
+              "failText": "Nejspíš bych se měl prvně obléct.",
+              "failTimeout": 1800,
+              "actions": [
+                { "type": "setVar", "name": "clothes", "value": "backpack" },
+                { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" },
+                { "type": "remove" }
+              ]
+              }
+          },
+          {
+            "id": "closet",
+            "type": "hotspot",
+            "x": "26%",
+            "y": "30%",
+            "width": 150,
+            "height": 290,
+            "z": 10,
+            "interactive": true,
+            "action": [
+              { "type": "setVar", "name": "clothes", "value": "dressed" },
+              { "type": "playSFX", "src": "assets/sfx/closet_open.mp3" }
+            ]
+          },
+          {
+            "id": "door",
+            "type": "hotspot",
+            "x": "20%",
+            "y": "25%",
+            "width": 70,
+            "height": 310,
+            "z": 10,
+            "interactive": true,
+            "action": [
+              {
+                "condition": {
+                  "fn": "or",
+                  "args": [
+                    { "var": "clothes", "equals": "backpack" },
+                    { "fn": "hasItem", "args": ["backpack"] }
+                  ]
+                },
+                "failText": "Ještě nemůžu jít, potřebuji se připravit.",
+                "failTimeout": 3000,
+                "type": "goto",
+                "target": "cesta_do_skoly"
+              }
+            ]
+          }
+        ]
+      },
+
+      "cesta_do_skoly": {
+
+        "objects": [
+          {
+            "id": "tire1",
+            "type": "decor",
+            "img": "assets/images/kola.png",
+            "x": "-10%",
+            "y": "50%",
+            "width": "5%",
+            "anchor": "50% 50%",
+            "z": 101,
+            "interactive": false,
+            "animate": {
+              "type": "move",
+              "from": { "x": "-24%", "y": "78%" },
+              "to": { "x": "116%", "y": "78%" },
+              "duration": 16000
+            }
+          },
+          {
+            "id": "tire2",
+            "type": "decor",
+            "img": "assets/images/kola.png",
+            "x": "-10%",
+            "y": "50%",
+            "width": "5%",
+            "anchor": "50% 50%",
+            "z": 101,
+            "interactive": false,
+            "animate": {
+              "type": "move",
+              "from": { "x": "-35%", "y": "78%" },
+              "to": { "x": "105%", "y": "78%" },
+              "duration": 16000
+            }
+          },
+          {
+            "id": "bus",
+            "type": "decor",
+            "img": "assets/images/bus.webp",
+            "x": "-40%",
+            "y": "50%",
+            "width": "50%",
+            "anchor": "50% 50%",
+            "z": 100,
+            "interactive": true,
+            "action": {
+              "type": "accelerate",
+              "speed": 0.32,
+              "alignWith": "bus",
+              "restoreSequence": [
+                { "speed": 0.55, "ms": 700 },
+                { "speed": 0.82, "ms": 850 },
+                { "speed": 1.0, "ms": 900 }
+              ],
+              "targets": [
+                "bus",
+                "tire1",
+                "tire2"
+              ]
+            },
+            "animate": {
+              "type": "move",
+              "from": { "x": "-30%", "y": "65%" },
+              "to": { "x": "110%", "y": "65%" },
+              "duration": 16000,
+              "onEnd": { "type": "goto", "target": "vchod_do_skoly" }
+            }
+          },
+          {
+            "id": "road",
+            "type": "decor",
+            "img": "assets/images/road.webp",
+            "x": "70%",
+            "y": "50%",
+            "anchor": "50% 50%",
+            "width": "120%",
+            "z": 7,
+            "animate": {
+              "type": "move",
+              "from": { "x": "60%", "y": "50%" },
+              "to": { "x": "50%", "y": "50%" },
+              "duration": 13000
+            }
+          },
+          {
+            "id": "sky",
+            "type": "decor",
+            "img": "assets/images/sky.webp",
+            "x": "40%",
+            "y": "0%",
+            "anchor": "50% 50%",
+            "width": "120%",
+            "z": 1,
+            "interactive": false,
+            "animate": {
+              "type": "move",
+              "from": { "x": "40%", "y": "50%" },
+              "to": { "x": "50%", "y": "50%" },
+              "duration": 16000
+            }
+          },
+          {
+            "id": "landscape",
+            "type": "decor",
+            "img": "assets/images/landscape.webp",
+            "x": "50%",
+            "y": "0%",
+            "anchor": "50% 50%",
+            "width": "120%",
+            "z": 2,
+            "interactive": false,
+            "animate": {
+              "type": "move",
+              "from": { "x": "50%", "y": "50%" },
+              "to": { "x": "40%", "y": "50%" },
+              "duration": 17000
+            }
+          },
+          {
+            "id": "bush",
+            "type": "decor",
+            "img": "assets/images/bushes.webp",
+            "x": "30%",
+            "y": "0%",
+            "anchor": "50% 50%",
+            "width": "120%",
+            "z": 10,
+            "interactive": false,
+            "animate": {
+              "type": "move",
+              "from": { "x": "55%", "y": "50%" },
+              "to": { "x": "40%", "y": "50%" },
+              "duration": 12000
+            }
+          }
+        ]
+      },
+
+      "vchod_do_skoly": {
+        "bg": "assets/images/vchod_skoly.webp",
+        "sceneCaption": "Vchod do školy",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"],
+            "defaultClothes": "backpack",
+            "clothesMap": {
+              "pyjamas": "assets/images/mc_pyzamo.webp",
+              "dressed": "assets/images/mc.webp",
+              "backpack": "assets/images/mc_batoh.webp"
+            }
+          },
+          {
+            "visible": true,
+            "img": "assets/images/classmate.webp",
+            "x": "80%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "17%",
+            "z": 7,
+            "speakerId": "Tom",
+            "aliases": ["Tom", "Spolužák", "Spoluzacka"],
+            "id": "tom-character"
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Uff, to byla jízda. Jsem ve škole." },
+          { "speaker": "Neo", "text": "Jee nazdar Tome, co ty tady tak brzo?" },
+           { "speaker": "Tom", "text": "Ahoj Neo, ale musím si ještě něco zařídit" },
+          { "speaker": "Tom", "text": "Pamatuješ, jak jsme loni dělali ten video projekt do dějepisu? O historii města?" },
+          { "speaker": "Neo", "text": "Jo, matně. Proč?" },
+          { "speaker": "Tom", "text": "Ještě ho máš?" },
+          { "speaker": "Neo", "text": "Ne, všechno se nahrávalo na školní server. Můj disk odešel, pamatuješ? Proč to potřebuješ?" },
+          { "speaker": "Tom", "text": "Ale jentak, už musím jít uvidíme se pak." }
+          
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "vchod_do_skoly_tom_odchazi"
+        }
+      },
+
+      "vchod_do_skoly_tom_odchazi": {
+        "bg": "assets/images/vchod_skoly.webp",
+        "sceneCaption": "Vchod do školy",
+        "text": "Hmm zvláštní. Dnes se chová fakt divně.\nNo nic, taky bych měl jít dovnitř.",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"],
+            "defaultClothes": "backpack",
+            "clothesMap": {
+              "pyjamas": "assets/images/mc_pyzamo.webp",
+              "dressed": "assets/images/mc.webp",
+              "backpack": "assets/images/mc_batoh.webp"
+            }
+          }
+        ],
+        "objects": [
+          {
+            "id": "tom-exit",
+            "type": "decor",
+            "img": "assets/images/classmate.webp",
+            "x": "80%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "17%",
+            "z": 8,
+            "animate": {
+              "type": "move",
+              "from": { "x": "80%", "y": "100%" },
+              "to": { "x": "128%", "y": "100%" },
+              "duration": 1100,
+              "onEnd": { "type": "remove" }
+            }
+          },
+          {
+            "id": "door",
+            "type": "hotspot",
+            "x": "35%",
+            "y": "30%",
+            "width": "23rem",
+            "height": "25rem",
+            "z": 10,
+            "interactive": true,
+            "action": [
+              {
+                "type": "goto",
+                "target": "vchod_do_skoly_po_tomovi"
+              }
+            ]
+          }
+        ]
+        
+
+      },
+      "vchod_do_skoly_po_tomovi": {
+        "bg": "assets/images/chodba.webp",
+        "sceneCaption": "Vchod do školy",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"],
+            "defaultClothes": "backpack",
+            "clothesMap": {
+              "pyjamas": "assets/images/mc_pyzamo.webp",
+              "dressed": "assets/images/mc.webp",
+              "backpack": "assets/images/mc_batoh.webp"
+            }
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Taky bych měl zmizet dovnitř." }
+        ],
+        "onDialogueComplete": 
+              {
+                "type": "goto",
+                "target": "scenes/pribeh1-kuba.json#start"
+              }
+            
+      }
+    }
+  }
+

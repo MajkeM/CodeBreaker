@@ -1,0 +1,360 @@
+{
+    "nodes": {
+      "start": {
+        "bg": "assets/images/chodba.webp",
+        "sceneCaption": "Chodba školy",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"],
+            "defaultClothes": "backpack",
+            "clothesMap": {
+              "pyjamas": "assets/images/mc_pyzamo.webp",
+              "dressed": "assets/images/mc.webp",
+              "backpack": "assets/images/mc_batoh.webp"
+            }
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Jsem ve škole. Měl bych jít do třídy." },
+          { "speaker": "Neo", "text": "Ale počkat... co to Tom říkal o tom projektu?" },
+          { "speaker": "Neo", "text": "Choval se fakt divně. Možná bych se měl podívat, co se děje." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "chodba_volba"
+        }
+      },
+
+      "chodba_volba": {
+        "bg": "assets/images/chodba.webp",
+        "sceneCaption": "Chodba školy",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"]
+          }
+        ],
+        "objects": [
+          {
+            "id": "door",
+            "type": "hotspot",
+            "x": "65%",
+            "y": "25%",
+            "width": 70,
+            "height": 310,
+            "z": 10,
+            "interactive": true,
+            "action": [
+              {
+                "failText": "Ještě nemůžu jít, potřebuji se připravit.",
+                "failTimeout": 3000,
+                "type": "goto",
+                "target": "hledat_toma"
+              }
+            ]
+          }
+        ],
+        "text": "Měl bych ho hledat ke skříňkám."
+      },
+
+      "hledat_toma": {
+        "bg": "assets/images/skrinky.png",
+        "sceneCaption": "Hledání Toma",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"]
+          },
+          {
+            "visible": true,
+            "img": "assets/images/classmate_shocked.png",
+            "x": "80%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Tom",
+            "aliases": ["Tom"]
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Tome?! Co se ti stalo?" },
+          { "speaker": "Tom", "text": "..." },
+          { "speaker": "Neo", "text": "Tome???"},
+          { "speaker": "Neo", "text": "Tom neodpovídá... Musím mu najít pomoc!" }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "poplach_start"
+        }
+      },
+
+      "poplach_start": {
+        "bg": "assets/images/skrinky.png",
+        "sceneCaption": "⚠️ POZOR! KRITICKÁ CHYBA! DETEKOVÁN VIRUS V SÍTI! ⚠️",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"]
+          },
+          {
+            "visible": true,
+            "img": "assets/images/classmate_shocked.png",
+            "x": "80%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Tom",
+            "aliases": ["Tom"]
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Co to sakra?!" },
+          { "speaker": "Neo", "text": "Nemůžu sehnat pomoc, když jsou dveře zamčené! Musím do serverovny." },
+          { "speaker": "Neo", "text": "Je to hned vedle. Musím ten virus zastavit a odemknout školu." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "serverovna"
+        }
+      },
+
+      "serverovna": {
+        "bg": "assets/images/server_room.webp",
+        "sceneCaption": "Serverovna",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "15%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"]
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Jsem uvnitř. Monitory šílí..." },
+          { "speaker": "Neo", "text": "Musím se připojit k hlavnímu terminálu a spustit antivirus." }
+        ],
+        "objects": [
+          {
+            "id": "terminal",
+            "type": "hotspot",
+            "x": "70%",
+            "y": "40%",
+            "width": 200,
+            "height": 150,
+            "interactive": true,
+            "caption": "Hacknout terminál",
+            "action": [
+              {
+                "type": "minigame_iframe",
+                "source": "assets/minigames/firewall_defense.html",
+                "onWinAction": {
+                    "type": "goto",
+                    "target": "serverovna_hotovo"
+              }
+            }
+            ]
+          }
+        ]
+      },
+      "serverovna_hotovo": {
+        "bg": "assets/images/server_room.webp",
+        "sceneCaption": "Serverovna",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "15%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo",
+            "aliases": ["Neo"]
+          }
+        ],
+        "dialogue": [
+          { "speaker": "System", "text": "ANTIVIRUS SPUŠTĚN. VÍRUS ODSTRANĚN. VŠECHNY VÝCHODY ODEMČENY." },
+          { "speaker": "Neo", "text": "Povedlo se! Teď rychle za Tomem do třídy." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "navrat_skrinky"
+        }
+      },
+    "navrat_skrinky": {
+      "bg": "assets/images/skrinky.png",
+      "sceneCaption": "Chodba u skříněk – Ticho",
+      "characters": [
+        {
+          "visible": true,
+          "img": "assets/images/mc_batoh.webp",
+          "x": "18%",
+          "y": "100%",
+          "anchor": "50% 100%",
+          "width": "18%",
+          "speakerId": "Neo",
+          "aliases": ["Neo"]
+        }
+      ],
+      "objects": [
+        {
+          "id": "toms_phone",
+          "type": "hotspot",
+          "x": "65%",
+          "y": "85%",
+          "width": 160,
+          "height": 100,
+          "z": 5,
+          "interactive": true,
+          "caption": "Zvednout telefon",
+          "img": "assets/images/tom_phone.png", 
+          "action": [
+            {
+              "type": "goto",
+              "target": "telefon_detail"
+            }
+          ]
+        }
+      ],
+      "dialogue": [
+        { "speaker": "Neo", "text": "Tome? Jsem zpátky, už je to..." },
+        { "speaker": "Neo", "text": "Je pryč? Jak mohl odejít? Sotva stál na nohou." },
+        { "speaker": "Neo", "text": "A nechal tady věci..." }
+      ],
+      "text": "Na zemi něco leží. Měl bych se podívat."
+    },
+
+    "telefon_detail": {
+      "bg": "assets/images/skrinky_mobil.png",
+      "sceneCaption": "Tomův telefon",
+      "characters": [],
+      "dialogue": [
+        { "speaker": "Neo", "text": "Jeho mobil. Tohle by tu nikdy nenechal." },
+        { "speaker": "System", "text": "SYSTEM UPDATE: COMPLETE.\nSUBJECT: MOVED TO CLASS 1B.", "style": "glitch" },
+        { "speaker": "Neo", "text": "Aktualizace systému? Subjekt přesunut? Co se to tu děje..." },
+        { "speaker": "Neo", "text": "Třída 1B... To je naše třída. Musím tam jít. Hned." }
+      ],
+      "onDialogueComplete": {
+        "type": "goto",
+        "target": "trida_vstup"
+      }
+    },
+
+    "trida_vstup": {
+       "bg": "assets/images/chodba.webp",
+       "characters": [
+        {
+          "visible": true,
+          "img": "assets/images/mc_batoh.webp",
+          "x": "50%",
+          "y": "100%",
+          "anchor": "50% 100%",
+          "width": "30%",
+          "speakerId": "Neo",
+          "aliases": ["Neo"]
+        }
+      ],
+       "sceneCaption": "Před třídou",
+       "dialogue": [
+          { "speaker": "Neo", "text": "Tak jo. Jdeme na to."}
+       ],
+       "onDialogueComplete": {
+          "type": "goto",
+          "target": "scene8_vstup" 
+       }
+    },
+    "scene8_vstup": {
+      "bg": "assets/images/trida.webp",
+      "sceneCaption": "Třída 1B",
+      "characters": [
+        {
+          "visible": true,
+          "img": "assets/images/mc_batoh.webp",
+          "x": "18%",
+          "y": "100%",
+          "anchor": "50% 100%",
+          "width": "18%",
+          "speakerId": "Neo",
+          "aliases": ["Neo"]
+        },
+        {
+          "visible": true,
+          "img": "assets/images/Teacher.webp",
+          "x": "80%",
+          "y": "100%",
+          "anchor": "50% 100%",
+          "width": "18%",
+          "speakerId": "Ucitel",
+          "aliases": ["Ucitel"],
+          "flip": true
+        }
+      ],
+            "dialogue": [
+        { "speaker": "Neo", "text": "Promiňte, paní učitelko! Byl vyhlášen poplach, zamčely se dveře a..." },
+        { "speaker": "Ucitel", "text": "Stát. Jdeš pozdě.", "style": "robotic" },
+        { "speaker": "Ucitel", "text": "Narušuješ synchronizaci." },
+        { "speaker": "Neo", "text": "Synchronizaci? Cože? Proč všichni tak divně zírají?" },
+        { "speaker": "Ucitel", "text": "PŘIPOJUJI K SÍTI... CÍL: NEO. STAV: NEKOMPATIBILNÍ.", "style": "glitch" },
+        { "speaker": "Neo", "text": "(Ten hlas... to znělo jako stroj. A ty oči jí... zčervenaly?)" },
+        { "speaker": "Neo", "text": "Sakra, tohle není dobrý. Tom na nic nereaguje. Paní učitelka vypadá, že mě chce zabít." },
+        { "speaker": "Neo", "text": "KAŠLU NA TO, MIZÍM!" }
+      ],
+      "onDialogueComplete": {
+        "type": "goto",
+        "target": ""
+      }
+    },
+    "chodba_utek": {
+      "bg": "assets/images/chodba.webp",
+      "sceneCaption": "Útěk",
+      "characters": [
+        {
+          "visible": true,
+          "img": "assets/images/mc_batoh.webp",
+          "x": "18%",
+          "y": "100%",
+          "anchor": "50% 100%",
+          "width": "18%",
+          "speakerId": "Neo"
+        }
+      ],
+      "dialogue": [
+        { "speaker": "Neo", "text": "Co to sakra bylo?! Učitelka mluvila v kódech!" },
+        { "speaker": "Neo", "text": "Musím najít jiné místo. Tady nejsem v bezpečí." }
+      ],
+      "onDialogueComplete": {
+        "type": "goto",
+        "target": "schodiste" 
+      }
+    }
+  }
+}
+    

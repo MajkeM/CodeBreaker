@@ -1,0 +1,187 @@
+OBJECTS - Jak přidávat interaktivní předměty do scény
+
+Cíl
+----
+Tento dokument popisuje jednoduchý JSON formát pro definici interaktivních "objects" (předmětů) v jednotlivých uzlech/scénách a doporučuje, jak je umístit přesně do herního okna, jak definovat aktivní oblast (hitbox) a běžné akce (klik, podržení, zvednutí/přidání do inventory, podmíněné zobrazování apod.).
+
+Základní koncepty
+------------------
+- Objekt = vizuální prvek (obrázek nebo průhledný hotspot), který může reagovat na události (click, hover).
+- Každý objekt má unikátní `id` a může mít `actions` které definují, co se stane po interakci.
+- Poloha objektu může být definována v pixelech (absolutně vůči hernímu kontejneru) nebo relativně (procenta nebo normalizované 0..1). Doporučuji používat procenta pro lepší responzivitu.
+
+Formát JSON (příklad)
+---------------------
+Ve `scene` (uzlu) přidej pole `objects`, které je pole objektů:
+
+{
+  "nodes": {
+    "start": {
+      "speaker": "Narrator",
+      "text": "Najdi klíč v místnosti.",
+      "bg": "assets/images/room_bg.svg",
+      "objects": [
+        {
+          "id": "key1",
+          "type": "item",
+          "img": "assets/images/key.png",
+          "x": "72%",
+          "y": "60%",
+          "anchor": "50% 50%",   // volitelně - kde je střed (pro centrování)
+          "width": "6%",         // volitelné, může být px nebo %
+          "z": 20,
+          "interactive": true,
+          "action": { "type": "pickup", "addTo": "inventory", "goto": "inspect_key" }
+        },
+        {
+          "id": "drawer_hotspot",
+          "type": "hotspot",
+          "img": "assets/images/hotspot_empty.png",
+          "x": 30,
+          "y": 50,
+          "width": 120,
+          "height": 80,
+          "z": 10,
+          "interactive": true,
+          "action": { "type": "goto", "target": "open_drawer" }
+        }
+      ]
+    }
+  }
+}
+
+Vysvětlení polí
+----------------
+- id: unikátní identifikátor objektu v rámci scény.
+- type: "item" | "hotspot" | "decor" — volitelné, pro interní logiku.
+- img: cesta k obrázku (PNG/SVG). Může být průhledný obrázek (pro přesný tvar) nebo malý ikonový sprite.
+- x, y: pozice. Může být buď:
+  - řetězec s procenty ("72%", "50%") — pozice vůči šířce/výšce kontejneru,
+  - číslo (např. 120) — považuje se za pixely (vztahuje se k hornímu levému rohu kontejneru),
+  - normalizované číslo 0..1 (0.5 = 50%).
+- anchor: volitelně posun kotvení (např. "50% 100%" pro spodek uprostřed). Pokud není uvedeno, výchozí je "0% 0%" (levý horní roh).
+- width / height: velikost objektu (px nebo %). Pokud není uvedeno, použije se přirozená velikost obrázku.
+- z: z-index (větší = nad ostatními prvky). Umožňuje překrývání postav, pozadí a UI.
+- interactive: boolean, zda objekt přijímá interakce (hover/click).
+- action: jednorázová akce při kliknutí. Může být:
+  - { type: "goto", target: "nodeId" }
+  - { type: "pickup", addTo: "inventory", goto: "inspect_item" }
+  - { type: "remove" }  // remove object from scene (no inventory)
+  - { type: "setVar", name: "hasKey", value: true }
+  - { type: "playSFX", src: "assets/audio/pickup.wav" }
+  - Může obsahovat pole `condition` (viz níže).
+
+Podmínky (conditions)
+---------------------
+Objekt nebo action může být podmíněný. Příklad:
+
+"condition": { "var": "hasKey", "equals": false }
+
+To říká, že objekt se zobrazí (nebo akce proběhne) jen pokud proměnná `hasKey` má hodnotu false.
+
+Inventory (jednoduchý přístup)
+------------------------------
+Formát `action` typu `pickup` může obsahovat `addTo: "inventory"` a volitelně id které se přidá do seznamu inventáře. Implementace fallback rendereru může mít jednoduché pole `inventory = []` a vykreslení drobného UI pro inventář.
+
+Hitbox a přesné umístění
+------------------------
+- Pokud chceš přesné umístění a různé tvary hitboxu, doporučuji použít:
+  - průhledné PNG přesně ohraničující tvar a použít ho jako `img`, nebo
+  - definovat `width`/`height` a volitelně `offsetX`/`offsetY` pro jemné doladění, nebo
+  - dodat `hitbox` pole tvaru { x, y, w, h } v pixelech nebo procentech.
+
+Příklad s hitboxem:
+{
+  "id":"lamp_switch",
+  "img":"assets/images/switch.png",
+  "x":"85%",
+  "y":"40%",
+  "width":48,
+  "height":48,
+  "hitbox": { "x": -10, "y": -10, "w": 68, "h": 68 },
+  "action": { "type":"setVar", "name":"lampOn", "value": true }
+}
+
+Responzivita a škálování
+------------------------
+- Pokud používáš procentní pozice/velikosti, objekty se automaticky přizpůsobí při změně velikosti okna.
+- Pokud potřebuješ pixel-perfect pozici (nebo složitou kompozici), používej pixely, ale pamatuj, že na menších obrazovkách se prvek může překrývat s UI.
+- Alternativa: kombinace `anchor` a procent, např. `x: "50%", y: "80%", anchor: "50% 100%"` pro centrované položení na spodní okraj.
+
+Akce a skripty
+---------------
+- action.type = "goto": přechod na jiný uzel/scénu.
+- action.type = "inspect": otevře modal/nový text s popisem objektu.
+- action.type = "pickup": přidá do inventáře a skryje objekt ze scény.
+- action.type = "setVar": nastaví proměnnou (použitelné pro logiku a conditiony).
+- action může být pole pro sekvenci akcí.
+
+Příklad sekvence:
+"action": [
+  { "type":"playSFX", "src":"assets/audio/pickup.wav" },
+  { "type":"pickup", "addTo":"inventory", "id":"key1" },
+  { "type":"setVar", "name":"hasKey", "value": true },
+  { "type":"goto", "target":"after_pickup_node" }
+]
+
+Příklad: odstranit objekt bez vložení do inventáře a pokračovat
+
+"action": [
+  { "type": "playSFX", "src": "assets/sfx/pop.mp3" },
+  { "type": "remove" },
+  { "type": "setVar", "name": "drawerOpened", "value": true },
+  { "type": "goto", "target": "after_removed" }
+]
+
+Jak to implementovat ve fallback rendereru (rychlý návod)
+------------------------------------------------------
+1) Při vykreslování node se projdou `node.objects` a pro každý objekt se vytvoří absolutně pozicovaný `img` nebo `div` element:
+   - element.style.position = 'absolute'
+   - pokud `x`/`y` v %: element.style.left = x; element.style.top = y;
+   - pokud anchor např. "50% 100%", použij transform: translate(-50%, -100%) nebo uprav `transform-origin`.
+   - element.style.zIndex = objekt.z || 1;
+
+2) Hitbox: pokud je definováno `hitbox`, vytvoř nad objektem `div` s pointer-events a nastavenou velikostí/pozicí; nebo stačí použít samotný obrazek, pokud průhlednost není problém.
+
+3) Interakce: při `click` zavolej funkci, která zpracuje `action`:
+   - pokud `pickup` => push do `inventory` a odstran `el` z DOMu,
+   - pokud `goto` => zavolej renderNode(target),
+   - pokud `setVar` => změň stav a případně re-renderuj scénu.
+
+Krátký příklad JS (pseudokód):
+
+// při renderNode(nodeId)
+for (const obj of node.objects || []){
+  const el = document.createElement('img');
+  el.src = obj.img;
+  el.style.position = 'absolute';
+  el.style.left = typeof obj.x === 'number' ? obj.x + 'px' : obj.x || '0%';
+  el.style.top = typeof obj.y === 'number' ? obj.y + 'px' : obj.y || '0%';
+  if (obj.width) el.style.width = typeof obj.width === 'number' ? obj.width + 'px' : obj.width;
+  if (obj.anchor) {
+    // anchor "50% 100%" -> translate(-50%,-100%)
+    el.style.transform = 'translate(-50%,-100%)';
+  }
+  el.style.zIndex = obj.z || 5;
+  el.style.cursor = obj.interactive ? 'pointer' : 'default';
+  el.addEventListener('click', ()=> handleAction(obj.action, obj));
+  container.appendChild(el);
+}
+
+4) Stav (variables) a inventory: ulož si jednoduchý objekt `state = { vars: {}, inventory: [] }`. Používej ho při vyhodnocování `condition`.
+
+Tipy a osvědčené postupy
+------------------------
+- Pro ruční, přesné umístění při designu používáš pixelové souřadnice a při responsivitě doplňuješ alternativu v %.
+- Pro průhledné tvary používej PNG s přesným ořezem; pak může obrazek sám sloužit i jako hitbox (pozor na průhledné části, klikací oblast bude i tam — pokud chceš přesně tvarově ošetřit, je potřeba složitější pixel-hit-test nebo polygonální hitboxy).
+- Dělej objekty s `z` tak, aby UI (textbox) měl vyšší z-index než objekty (pokud nechceš, aby se překrývaly).
+- Pro pickupy automaticky přidej nějakou animaci/efekt a SFX pro lepší zpětnou vazbu.
+
+Hotové příklady
+---------------
+V projektu mohu vytvořit ukázkovou scénu `scenes/objects_demo.json` a upravit `src/game.js`, aby:
+- vykresloval objekty,
+- umožnil pickup do jednoduchého inventáře (UI panel),
+- a předvedl `goto`/`setVar` akce.
+
+Chceš, abych to rovnou implementoval do fallback rendereru (`src/game.js`) a přidal `scenes/objects_demo.json` s několika příklady (pickup, hotspot, condition)? Pokud ano, provedu to hned (upravením kódu a přidáním souboru).

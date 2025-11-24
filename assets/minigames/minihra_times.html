@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hacking Minigame</title>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            background-color: rgba(0, 20, 0, 0.9); /* Tmavá, poloprůhledná */
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* CRT efekt */
+        .scanlines {
+            position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            pointer-events: none; z-index: 10;
+        }
+
+        h1 { text-shadow: 0 0 10px #00ff00; margin-bottom: 10px; text-align: center; }
+        
+        .game-container {
+            position: relative;
+            width: 80%;
+            max-width: 600px;
+            height: 60px;
+            border: 3px solid #00ff00;
+            background: #001100;
+            border-radius: 5px;
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        #target-zone {
+            position: absolute; top: 0; bottom: 0;
+            background-color: rgba(0, 255, 0, 0.5);
+            width: 20%; left: 40%;
+        }
+
+        #cursor {
+            position: absolute; top: -5px; bottom: -5px;
+            width: 4px; background-color: #fff;
+            left: 0%;
+            box-shadow: 0 0 10px #fff;
+            transition: none;
+        }
+
+        .status { margin-top: 20px; font-size: 1.5em; font-weight: bold; }
+        .instruction { color: #aaffaa; margin-bottom: 30px; font-size: 1.1em; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="scanlines"></div>
+    <h1>⚠️ SYSTÉMOVÉ NARUŠENÍ ⚠️</h1>
+    <p class="instruction">Zastav kurzor v zelené zóně stiskem <b>MEZERNÍKU</b> nebo <b>KLIKNUTÍM</b>.</p>
+    
+    <div class="status" id="level-display">LEVEL 1 / 3</div>
+
+    <div class="game-container" id="game-area">
+        <div id="target-zone"></div>
+        <div id="cursor"></div>
+    </div>
+
+    <script>
+        const cursor = document.getElementById('cursor');
+        const targetZone = document.getElementById('target-zone');
+        const levelDisplay = document.getElementById('level-display');
+        const gameArea = document.getElementById('game-area');
+
+        let level = 1;
+        const maxLevels = 3;
+        let speed = 1.5;
+        let position = 0;
+        let direction = 1;
+        let isRunning = true;
+        let canInteract = true;
+
+        // Náhodná pozice cíle
+        function randomizeZone() {
+            const maxPos = 80; 
+            const minPos = 5;
+            const newPos = Math.floor(Math.random() * (maxPos - minPos) + minPos);
+            targetZone.style.left = newPos + '%';
+            return newPos;
+        }
+
+        let targetPos = randomizeZone();
+
+        // Herní smyčka
+        function loop() {
+            if (!isRunning) return;
+
+            position += speed * direction;
+            if (position >= 100) direction = -1;
+            if (position <= 0) direction = 1;
+
+            cursor.style.left = position + '%';
+            requestAnimationFrame(loop);
+        }
+
+        // Logika akce
+        function action() {
+            if (!isRunning || !canInteract) return;
+            canInteract = false;
+
+            const targetLeft = parseFloat(targetZone.style.left);
+            // 20% je šířka zóny definovaná v CSS
+            const targetRight = targetLeft + 20; 
+
+            if (position >= targetLeft && position <= targetRight) {
+                // VÍTĚZSTVÍ V KOLE
+                level++;
+                blink("#ffffff"); // bliknutí bíle
+
+                if (level > maxLevels) {
+                    // KOMPLETNÍ VÝHRA
+                    winGame();
+                } else {
+                    // DALŠÍ LEVEL
+                    speed += .5;
+                    targetPos = randomizeZone();
+                    levelDisplay.innerText = `LEVEL ${level} / ${maxLevels}`;
+                    setTimeout(() => { canInteract = true; }, 500);
+                }
+            } else {
+                // CHYBA
+                blink("#ff0000");
+                levelDisplay.innerText = "CHYBA! ZKUS TO ZNOVU!";
+                setTimeout(() => {
+                    canInteract = true;
+                    levelDisplay.innerText = `LEVEL ${level} / ${maxLevels}`;
+                }, 500);
+            }
+        }
+
+        function blink(color) {
+            gameArea.style.borderColor = color;
+            gameArea.style.backgroundColor = color === "#ff0000" ? "#330000" : "#003300";
+            setTimeout(() => {
+                gameArea.style.borderColor = "#00ff00";
+                gameArea.style.backgroundColor = "#001100";
+            }, 200);
+        }
+
+        function winGame() {
+            isRunning = false;
+            levelDisplay.innerHTML = "PŘÍSTUP POVOLEN...";
+            levelDisplay.style.color = "#fff";
+            gameArea.style.display = "none";
+
+            // >>> ODESLÁNÍ ZPRÁVY DO HLAVNÍ HRY <<<
+            setTimeout(() => {
+                window.parent.postMessage("minigame_win", "*");
+            }, 1500);
+        }
+
+        // Ovládání
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') action();
+        });
+        window.addEventListener('mousedown', action);
+        window.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // proti zoomu na mobilech
+            action();
+        });
+
+        loop(); // start
+    </script>
+</body>
+</html>

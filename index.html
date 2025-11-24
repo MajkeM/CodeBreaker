@@ -1,24 +1,109 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>RenJS Visual Novel - demo</title>
+    <style>
+      html,body{height:100%;margin:0;font-family:Segoe UI,Arial,sans-serif;background:#111;color:#eee}
+      #ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+      /* Larger, responsive game container: keeps 16:9 aspect ratio and scales to viewport */
+      #game{
+        width: min(1920px, 92vw);
+        aspect-ratio: 16/9;
+        height: auto; /* controlled by aspect-ratio */
+        max-height: 85vh;
+        background:#000;
+        border:6px solid #222;
+        box-shadow:0 10px 40px rgba(0,0,0,.6);
+        overflow:hidden;
+      }
+      :root{
+        --bg:#0f1113;
+        --frame:#0b0c0d;
+        --accent:#2b90ff;
+        --muted:rgba(255,255,255,0.7);
+        --glass: rgba(255,255,255,0.04);
+      }
+      html,body{height:100%;margin:0;font-family:Segoe UI,Arial,sans-serif;background:var(--bg);color:#eee}
+      /* center stage */
+      #ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:28px}
 
-<head>
-  <title>CodeBreaker</title>
-  <meta charset="utf-8">
-  <link rel="stylesheet" href="style.css">
-</head>
+      /* game frame */
+      #game{
+        width: min(1280px, 94vw);
+        aspect-ratio: 16/9;
+        height: auto;
+        max-height: 86vh;
+        background: linear-gradient(180deg, #071018 0%, #0b1724 100%);
+        border-radius: 6px;
+        border: 3px solid rgba(255,255,255,0.03);
+        box-shadow: 0 14px 48px rgba(0,0,0,.65), inset 0 2px 0 rgba(255,255,255,0.02);
+        overflow:hidden;
+        display:block;
+        position:relative;
+      }
 
-<body>
-  <!-- Herní plátno je generováno skriptem -->
+      /* small chrome inside the frame */
+      #game:before{
+        content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(135deg, rgba(255,255,255,0.01), transparent 30%);
+      }
 
-  <!-- Načtení externí knihovny Kaboom.js -->
-  <script src="https://unpkg.com/kaboom@3000.0.1/dist/kaboom.js"></script>
+      /* buttons / UI defaults */
+      button{background:var(--glass);border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:6px 10px;border-radius:6px;cursor:pointer}
+      button:hover{background:rgba(255,255,255,0.03);color:#fff}
 
-  <!-- Naše vlastní skripty -->
-  <script src="js/main.js"></script>
-  <script src="js/scenes/scene_intro.js"></script>
-  <script src="js/scenes/scene_server.js"></script>
-  <script src="js/scenes/scene_classroom.js"></script>
-  <script src="js/scenes/scene_minigame.js"></script>
-</body>
+      /* responsive text box adjustments from game renderer */
+      .vn-textbox{font-size:15px;line-height:1.4}
+      .vn-name{font-weight:700;font-size:13px;color:var(--accent);margin-bottom:6px}
 
+      /* choices */
+      .vn-choice{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04));border-radius:6px;padding:8px 10px;margin-right:8px}
+      .vn-choice:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,0.45)}
+
+      /* inventory */
+      .inv-item{display:flex;align-items:center;gap:8px;padding:6px;border-radius:6px}
+      .inv-item img{width:34px;height:34px;object-fit:contain}
+
+      @media (max-width:640px){
+        #game{width:95vw; max-height:92vh}
+        .vn-textbox{font-size:14px}
+      }
+    </style>
+    <script>
+      (async function(){
+        const localPath = './vendor/renjs.js';
+        let useLocal = false;
+        try{
+          const r = await fetch(localPath, { method: 'HEAD' });
+          useLocal = r.ok;
+        }catch(e){ useLocal = false; }
+
+        const src = useLocal ? localPath : 'https://renjs.net/downloads/releases/renjs.js';
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = function(){
+          // Now load the module bootstrap which depends on RenJS being available
+          const m = document.createElement('script');
+          m.type = 'module';
+          m.src = './src/main.js';
+          document.head.appendChild(m);
+        };
+        s.onerror = function(){
+          // still attempt to load bootstrap (it will fallback to DOM renderer)
+          const m = document.createElement('script');
+          m.type = 'module';
+          m.src = './src/main.js';
+          document.head.appendChild(m);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+
+    <div id="ui">
+      <div id="game">
+        <!-- engine will mount here -->
+      </div>
+    </div>
+  </body>
 </html>

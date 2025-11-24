@@ -1,0 +1,157 @@
+SCENES / Jak psát scény pro Visual Novel (rychlý návod)
+
+Tento soubor vysvětluje jednoduchý JSON formát použitý v projektu jako vstup pro fallback renderer a zároveň dává doporučení, jak strukturovat scény, assets a workflow pro pozdější napojení do RenJS.
+
+1) Základní princip
+- Každá scéna je JSON objekt obsahující seznam "nodes" (uzlů).
+- Každý uzel (node) reprezentuje jednu krokovou akci: text, mluvící postava, volby nebo přechod.
+- Formát je záměrně jednoduchý pro rychlé ruční psaní. Později si můžeš napsat konvertor na formát, který RenJS očekává.
+
+2) Souborová organizace (doporučená)
+- scenes/scene1.json        # primární scéna (startovací)
+- scenes/chap01_scene02.json
+- assets/images/           # obrázky postav / pozadí
+- assets/audio/            # bgm / sfx
+
+3) JSON schéma (minimální)
+{
+  "nodes": {
+    "start": {
+      "speaker": "Narator",
+      "text": "Vítej v příběhu.",
+      "choices": [
+        { "text": "Ano", "target": "yes" },
+        { "text": "Ne", "target": "no" }
+      ]
+    },
+    "yes": {
+      "speaker": "Hrdina",
+      "text": "Skvěle! Pokračujeme.",
+      "next": "end"
+    },
+    "no": {
+      "speaker": "Hrdina",
+      "text": "Dobře, ukončuji.",
+      "next": "end"
+    },
+    "end": {
+      "speaker": "",
+      "text": "Konec scény."
+    }
+  }
+}
+
+Povinné/volitelné pole u node:
+- speaker (string)  - kdo mluví (může být prázdný)
+- text (string)     - text, který se zobrazí
+- choices (array)   - pokud existuje, zobrazí se tlačítka; každý choice má {text, target}
+- next (string)     - id dalšího node (pokud není choices)
+- (volitelné) bg (string) - název background obrazu
+- (volitelné) music (string) - spustit BGM
+- (volitelné) sfx (string) - přehrát SFX
+
+4) Příklad s obrázky a audio
+"scene_with_assets.json":
+{
+  "nodes":{
+    "start":{
+      "speaker":"Narator",
+      "text":"Jsi v pokoji.",
+      "bg":"room_day.png",
+      "music":"calm_loop.ogg",
+      "next":"choose"
+    },
+    "choose":{
+      "speaker":"Hrdina",
+      "text":"Co uděláš?",
+      "choices":[
+        {"text":"Prozkoumat","target":"explore"},
+        {"text":"Jít spát","target":"sleep"}
+      ]
+    },
+    "explore":{
+      "speaker":"",
+      "text":"Najdeš poznámku na stole.",
+      "sfx":"paper_flip.ogg",
+      "next":"end"
+    },
+    "sleep":{
+      "speaker":"",
+      "text":"Usneš a noc plyne...",
+      "next":"end"
+    },
+    "end":{
+      "text":"Konec krátké ukázky"
+    }
+  }
+}
+
+Pokud používáš assets, ulož je do `assets/images/` a `assets/audio/` a ve svém engine loaderu je mapuj např. "room_day.png" -> "assets/images/room_day.png".
+
+5) Proměnné a podmínky (doporučený rozšířený vzor)
+- Node může měnit proměnné (vars) nebo je kontrolovat.
+- Návrh pole:
+  - set: { varName: value }  // při vstupu do node
+  - condition: { varName: value, target: "nodeIdIfTrue" }
+
+Příklad:
+"lockedDoor":{
+  "speaker":"",
+  "text":"Dveře jsou zamčené.",
+  "choices":[
+    {"text":"Vyzkoušet klíč","target":"checkKey"},
+    {"text":"Vrátit se","target":"hall"}
+  ]
+},
+"checkKey":{
+  "condition": { "hasKey": true, "target": "openDoor" },
+  "text": "Zkoušíš klíč..."
+}
+
+Implementačně: v fallback rendereru kontroluj `condition` a pokud je splněna, přesměruj uživatele na uvedený target; jinak zpracuj normálně.
+
+6) Lokalizace
+- Pro vícejazyčné projekty udržuj texty odděleně (např. locales/cs.json, locales/en.json) a v scene JSON odkazuj na klíče. Nebo udržuj celé scény per-locale.
+
+7) Pravidla a tipy
+- Id node: používej krátké, jedinečné názvy (bez mezer), např. start, intro_01, shop_end.
+- Organizace: rozděl scény na kapitoly/stavy, ne vše do jednoho souboru.
+- Asset naming: malá písmena, podtržítka, přípony, např. hero_idle.png, bg_forest_day.jpg.
+- Testování: po každé úpravě scény refreshni stránku (nebo nastav hot reloading při použití Vite).
+- Debugging: pokud se node nenajde, fallback renderer vypíše chybu do console a zobrazí informaci v UI.
+
+8) Jak flow testovat (rychle)
+- Spusť dev server (PowerShell):
+  npm install
+  npm run dev
+- Otevři http://localhost:5173
+- Interaguj — fallback renderer načte `scenes/scene1.json`. Když stáhneš `vendor/renjs.js` a engine ho bude podporovat, můžeš testovat skutečný engine.
+
+9) Přechod k RenJS
+- RenJS má vlastní DSL/format — až budeš chtít přejít, udělej mapování z výše uvedeného formátu na formát RenJS nebo napiš exportér.
+- Zkusíme implementovat postupné: začni psát scény v tomto jednoduchém JSONu, když budeš potřebovat RenJS-only funkce (cutscény, animace), přidáme překladač.
+
+10) Checklist před commitem / předaná verze
+- Ověř, že všechny assety jsou ve `assets/` a cesty v JSON odpovídají.
+- Proveď rychlou kontrolu JSON validitou (např. v editoru nebo `jq`).
+- Spusť `npm run dev` a projdi základní cestu (start->volba->konec).
+- Přidej popis do `README.md`, jak přidat novou scénu a assets.
+
+11) Příklady chyb (a jak je napravit)
+- "Node not found": zkontroluj, že `target` odpovídá existujícímu id.
+- "Asset not found": zkontroluj cestu a že soubor je v `assets/`.
+- "JSON parse error": často chybí čárka nebo uvozovky. Ověř v JSON lint nástroji.
+
+12) Dále (co můžeme doplnit)
+- Přidám šablonu pro přidání nové scény (CLI skript) — můžu vytvořit `scripts/new-scene.js`.
+- Přidat live reload pro `scenes/` (Vite to dělá automaticky pokud načítáš modulem), v našem fallbacku reload je manuální při F5.
+
+Konec — pokud chceš, vytvořím ještě:
+- krátký VSCode snippet pro vložení node json, nebo
+- `scripts/new-scene.js` pro rychlé generování scény, nebo
+- rozšíření fallback rendereru o proměnné/condition implementaci (pokud chceš),
+- nebo přeložím tento formát přímo do RenJS formátu.
+
+
+
+Autor: tvůj projekt scaffold — postupy připravil bot (upraveno pro čitelnost).
