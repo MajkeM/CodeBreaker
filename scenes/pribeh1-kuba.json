@@ -347,7 +347,7 @@
         }
       ],
       "dialogue": [
-        { "speaker": "Neo", "text": "Co to sakra bylo?! Učitel mluvil v kódech!" },
+        { "speaker": "Neo", "text": "Co to sakra bylo?! Učitelka mluvila v kódech!" },
         { "speaker": "Neo", "text": "Musím najít jiné místo. Tady nejsem v bezpečí." }
       ],
       "onDialogueComplete": {
