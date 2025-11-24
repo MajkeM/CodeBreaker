@@ -352,7 +352,7 @@
       ],
       "onDialogueComplete": {
         "type": "goto",
-        "target": "schodiste" // asdasdasdasd
+        "target": "schodiste" 
       }
     }
   }
