@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <title>C++ Patch Challenge</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Fira Code", "Courier New", monospace;
+      background: #04101f;
+      color: #f0f4ff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .panel {
+      background: #14213d;
+      border: 2px solid #4cc9f0;
+      border-radius: 16px;
+      padding: 24px;
+      width: min(520px, 94vw);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+    h1 {
+      margin: 0 0 10px;
+      text-align: center;
+      color: #f72585;
+    }
+    pre {
+      background: #0b182f;
+      padding: 16px;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      position: relative;
+    }
+    .blank {
+      display: inline-block;
+      min-width: 52px;
+      padding: 0 6px;
+      border-bottom: 2px solid #ffbe0b;
+      color: #ffbe0b;
+      cursor: text;
+      outline: none;
+    }
+    .blank.empty::after {
+      content: attr(data-placeholder);
+      color: #ffbe0b;
+      opacity: 0.6;
+    }
+    button {
+      width: 100%;
+      margin-top: 18px;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      background: #4cc9f0;
+      color: #0b1324;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    #status {
+      margin-top: 14px;
+      text-align: center;
+      font-weight: 600;
+    }
+    #hint {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #ffd166;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Patchni C++ kód</h1>
+    <p style="margin:8px 0 16px;text-align:center;color:#b5c8ff;">
+      Doplň chybějící části přímo v kódu tak, aby program třikrát vypsal “Scan #0…2”.
+    </p>
+    <pre>
+#include &lt;<span class="blank empty" data-slot="slot1" data-placeholder="header"></span>&gt;
+
+int main() {
+    <span class="blank empty" data-slot="slot2" data-placeholder="typ"></span> counter = 0;
+    <span class="blank empty" data-slot="slot3" data-placeholder="smyčka"></span> (counter &lt; 3) {
+        std::cout &lt;&lt; "Scan #" &lt;&lt; counter &lt;&lt; std::endl;
+        <span class="blank empty" data-slot="slot4" data-placeholder="inkrement"></span>;
+    }
+    return <span class="blank empty" data-slot="slot5" data-placeholder="hodnota"></span>;
+}
+    </pre>
+
+    <button id="checkBtn">Odeslat patch</button>
+    <div id="status">Čekám na opravy…</div>
+    <div id="hint">Tip se odemkne po třetím neúspěchu.</div>
+  </div>
+
+  <script>
+    const expected = {
+      slot1: ['iostream'],
+      slot2: ['int'],
+      slot3: ['while'],
+      slot4: ['counter++','++counter','counter += 1','counter+=1'],
+      slot5: ['0']
+    };
+
+    const blanks = document.querySelectorAll('.blank');
+    const statusEl = document.getElementById('status');
+    const hintEl = document.getElementById('hint');
+    const checkBtn = document.getElementById('checkBtn');
+    let attempts = 0;
+    const hintText = 'Tip: std::cout je v &lt;iostream&gt;, počítadlo je typu int, smyčka je while a program končí návratem 0.';
+
+    blanks.forEach(span=>{
+      span.contentEditable = 'true';
+      span.addEventListener('input', ()=>{
+        span.classList.toggle('empty', span.innerText.trim() === '');
+      });
+      span.addEventListener('focus', ()=>{
+        if (span.classList.contains('empty')) span.innerText = '';
+      });
+      span.addEventListener('blur', ()=>{
+        if (span.innerText.trim() === '') span.classList.add('empty');
+      });
+    });
+
+    const normalize = v => v.replace(/\s+/g,'').toLowerCase();
+
+    checkBtn.addEventListener('click', ()=>{
+      const ok = [...blanks].every(span=>{
+        const slot = span.dataset.slot;
+        const val = normalize(span.innerText);
+        return expected[slot]?.some(ans => normalize(ans) === val);
+      });
+
+      if (ok){
+        statusEl.textContent = 'Patch úspěšný ✅';
+        statusEl.style.color = '#90f790';
+        hintEl.style.display = 'none';
+        window.parent?.postMessage('minigame_win', '*');
+      } else {
+        attempts++;
+        statusEl.textContent = `Nesprávná oprava ❌ (pokus ${attempts})`;
+        statusEl.style.color = '#ff6b6b';
+        if (attempts >= 3){
+          hintEl.textContent = hintText;
+          hintEl.style.display = 'block';
+        }
+        window.parent?.postMessage('minigame_fail', '*');
+      }
+    });
+  </script>
+</body>
+</html>

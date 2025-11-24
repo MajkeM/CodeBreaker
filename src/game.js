@@ -970,6 +970,7 @@ export function initFallback(scene){
       action.forEach(a=> handleAction(a, obj));
       return;
     }
+    
     // condition check: if fails, run onFail (action.onFail) or show toast/play failSFX
     if (action.condition){
       if (!evaluateCondition(action.condition)){
@@ -1024,20 +1025,109 @@ export function initFallback(scene){
       try{ removeObject(obj); }catch(e){ console.warn('removeObject failed', e); }
     }
     switch(action.type){
-      case 'remove':
-        if (obj) removeObject(obj);
-        if (action.goto){
+       case 'remove':
+      if (obj) removeObject(obj);
+      if (action.goto){
+        const target = action.goto;
+        if (target.includes('#')) {
+          const [scenePath, nodeName] = target.split('#');
+          loadExternalScene(scenePath, nodeName);
+          return;
+        } else if (target.includes('.json')) {
+          loadExternalScene(target, null);
+          return;
+        } else {
           const gotoOpts = (action.gotoMs !== undefined || action.transition) ? { ms: action.gotoMs, transition: action.transition } : undefined;
           navigateTo(action.goto, gotoOpts);
         }
-        if (action.playSFX) playSFX(action.playSFX);
-        break;
+      }
+      if (action.playSFX) playSFX(action.playSFX);
+      break;
+      // Tady je tvůj switch, proměnná se pravděpodobně jmenuje 'action' nebo 'act'
+// POKUD SE TVOJE PROMĚNNÁ JMENUJE JINAK, PŘEPIŠ SI SLOVO 'action' NA SVŮJ NÁZEV!
+
+case 'minigame_iframe':
+      console.log("Spouštím minihru:", action.source);
+      
+      // 1. Vytvoření IFRAME
+      const iframe = document.createElement('iframe');
+      iframe.src = action.source;
+      
+      // Styly (černé pozadí, full screen, nejvyšší vrstva)
+      Object.assign(iframe.style, {
+          position: 'fixed', 
+          top: '0', left: '0', 
+          width: '100%', height: '100%', 
+          border: 'none', 
+          zIndex: '99999', 
+          background: 'black' 
+      });
+      
+      document.body.appendChild(iframe);
+
+      // 2. Posluchač zpráv z minihry
+      const minigameListener = (event) => {
+          
+          // Pokud hráč vyhrál
+          if (event.data === 'minigame_win') {
+              
+              // Úklid: odstraníme iframe a posluchače
+              if (document.body.contains(iframe)) {
+                  document.body.removeChild(iframe);
+              }
+              window.removeEventListener('message', minigameListener);
+
+              // >>> ZPRACOVÁNÍ VÍTĚZNÉ AKCE (Podle tvé logiky goto) <<<
+              // Vezmeme data z "onWinAction" v JSONu
+              if (action.onWinAction && action.onWinAction.type === 'goto') {
+                  const winTarget = action.onWinAction.target;
+
+                  if (winTarget) {
+                      // 1. Logika pro externí scény (# nebo .json)
+                      if (winTarget.includes('#')) {
+                          const [scenePath, nodeName] = winTarget.split('#');
+                          loadExternalScene(scenePath, nodeName);
+                          return;
+                      } else if (winTarget.includes('.json')) {
+                          loadExternalScene(winTarget, null);
+                          return;
+                      }
+
+                      // 2. Logika pro vnitřní přechod (options)
+                      const winGotoOpts = (action.onWinAction.gotoMs !== undefined || action.onWinAction.transition) 
+                          ? { ms: action.onWinAction.gotoMs, transition: action.onWinAction.transition } 
+                          : undefined;
+                      
+                      // 3. Zavolání tvé navigační funkce
+                      navigateTo(winTarget, winGotoOpts);
+                  }
+              }
+          }
+          
+          // Volitelně: Pokud bys někdy posílal 'minigame_lose'
+          if (event.data === 'minigame_lose') {
+              // Restart hry (volitelné)
+              iframe.src = iframe.src;
+          }
+      };
+
+      window.addEventListener('message', minigameListener);
+      break;
       case 'goto':
-        if (action.target){
-          const gotoOpts = (action.gotoMs !== undefined || action.transition) ? { ms: action.gotoMs, transition: action.transition } : undefined;
-          navigateTo(action.target, gotoOpts);
+      if (action.target){
+        const target = action.target;
+        if (target.includes('#')) {
+          const [scenePath, nodeName] = target.split('#');
+          loadExternalScene(scenePath, nodeName);
+          return;
+        } else if (target.includes('.json')) {
+          loadExternalScene(target, null);
+          return;
         }
-        break;
+        const gotoOpts = (action.gotoMs !== undefined || action.transition) ? { ms: action.gotoMs, transition: action.transition } : undefined;
+        navigateTo(action.target, gotoOpts);
+      }
+      break;
       case 'pickup':
         // add to inventory and remove element with animation
         {
@@ -1813,6 +1903,34 @@ export function initFallback(scene){
   try{ renderCharacter(charSpec); }catch(e){ console.warn('renderCharacter failed', e); }
   setTimeout(positionDialogueBubble, 20);
   }
+
+  function loadExternalScene(scenePath, nodeName) {
+  fetch(scenePath)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Failed to load scene: ${scenePath}`);
+      }
+      return response.json();
+    })
+    .then(sceneData => {
+      // Merge nodes do current scene
+      if (sceneData.nodes) {
+        scene.nodes = { ...scene.nodes, ...sceneData.nodes };
+      }
+      
+      // Jump to the target node
+      if (nodeName && scene.nodes[nodeName]) {
+        current = nodeName;
+        renderNode(nodeName);
+      }
+    })
+    .catch(error => {
+      console.error('Error loading external scene:', error);
+      showToast('Chyba při načítání scény: ' + scenePath);
+    });
+}
+
+
 
   renderNode(current);
 }

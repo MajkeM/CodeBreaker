@@ -361,7 +361,13 @@
         ],
         "dialogue": [
           { "speaker": "Neo", "text": "Taky bych měl zmizet dovnitř." }
-        ]
+        ],
+        "onDialogueComplete": 
+              {
+                "type": "goto",
+                "target": "scenes/pribeh1-kuba.json#start"
+              }
+            
       }
     }
   }
