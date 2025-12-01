@@ -329,7 +329,7 @@
       ],
       "onDialogueComplete": {
         "type": "goto",
-        "target": ""
+        "target": "chodba_utek"
       }
     },
     "chodba_utek": {
@@ -352,9 +352,244 @@
       ],
       "onDialogueComplete": {
         "type": "goto",
-        "target": "schodiste" 
+        "target": "chodba2_volba" 
       }
-    }
+    },
+      "chodba2_volba": {
+        "bg": "assets/images/chodba.webp",
+        "sceneCaption": "Chodba školy",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "18%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo"
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Slyším divné bzučení z úklidové místnosti." },
+          { "speaker": "Neo", "text": "Zní to jako... server? V kumbále na košťata?" },
+          { "speaker": "Neo", "text": "Musím se tam podívat." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "uklidova_mistnost"
+        }
+      },
+
+      "uklidova_mistnost": {
+        "bg": "assets/images/uklizeci_mistnost.png",
+        "sceneCaption": "Úklidová místnost",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "15%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo"
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Co to?" },
+          { "speaker": "Neo", "text": "Co to tu dělá? Zkusím se na to podívat.." }
+        ],
+        "objects": [
+          {
+            "id": "hidden_terminal",
+            "type": "hotspot",
+            "x": "70%",
+            "y": "20%",
+            "width": 400,
+            "height": 300,
+            "interactive": true,
+            "caption": "Nabourat terminál",
+            "action": [
+              {
+                "type": "minigame_iframe",
+                "source": "assets/minigames/minihra_times.html",
+                "onWinAction": {
+                    "type": "goto",
+                    "target": "tajna_zprava"
+                }
+              }
+            ]
+          }
+        ]
+      },
+
+      "tajna_zprava": {
+        "bg": "assets/images/terminal_obraz.png",
+        "sceneCaption": "Systémový Log",
+        "dialogue": [
+          { "speaker": "Neo", "text": "Jsem tam. Co to tu máme..." },
+          { "speaker": "System", "text": "LOG 404: Subjekt 'Tom' vykazoval známky probuzení. Reset paměti proveden." },
+          { "speaker": "System", "text": "LOKACE SUBJEKTU: KNIHOVNA - ARCHIV." },
+          { "speaker": "Neo", "text": "Probuzení? Reset paměti? Takže Tom se nezbláznil... oni mu něco udělali!" },
+          { "speaker": "Neo", "text": "Musím projít přes jídelnu do knihovny." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "jidelna_glitch"
+        }
+      },
+
+      "jidelna_glitch": {
+        "bg": "assets/images/cafeteria.png",
+        "sceneCaption": "Školní jídelna",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "15%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo"
+          },
+          {
+            "visible": true,
+            "img": "assets/images/classmate_cafe.png",
+            "x": "70%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "20%",
+            "speakerId": "Student"
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Je tu plno lidí, ale... je tu hrobové ticho." },
+          { "speaker": "Neo", "text": "Hej! Neviděli jste Toma?" },
+          { "speaker": "Student", "text": "KONZUMACE. NUTRIČNÍ. HODNOTA. 404.", "style": "robotic" },
+          { "speaker": "Student", "text": "NEO. NENALEZEN V DATABÁZI JÍDELNÍČKU.", "style": "glitch" },
+          { "speaker": "Neo", "text": "Tohle není škola. Všichni se chovají jako roboti! Musím zmizet." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "knihovna_vstup"
+        }
+      },
+
+      "knihovna_vstup": {
+        "bg": "assets/images/knihovna.png",
+        "sceneCaption": "Knihovna",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "15%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo"
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Knihovna je prázdná. Podle logu tu má být Tom." },
+          { "speaker": "Neo", "text": "Ty dveře do archivu vzadu... svítí tam něco červeného!!." }
+        ],
+        "objects": [
+          {
+            "id": "archive_door",
+            "type": "hotspot",
+            "x": "45%",
+            "y": "30%",
+            "width": 100,
+            "height": 200,
+            "interactive": true,
+            "caption": "Otevřít archiv",
+            "action": [
+              {
+                "type": "goto",
+                "target": "archiv_lockpick"
+              }
+            ]
+          }
+        ]
+      },
+
+      "archiv_lockpick": {
+        "bg": "assets/images/library_close.png",
+        "sceneCaption": "Zámek archivu",
+        "dialogue": [
+          { "speaker": "Neo", "text": "Je to elektronický zámek. Můžu zkusit zkratovat obvod ve správný moment." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "minihra_zamek"
+        }
+      },
+
+      "minihra_zamek": {
+        "bg": "assets/images/library_close.png",
+        "sceneCaption": "Zámek archivu",
+        "objects": [
+          {
+            "id": "lock_hack",
+            "type": "hotspot",
+            "x": "25%",
+            "y": "25%",
+            "width": 500,
+            "height": 500,
+            "interactive": true,
+            "caption": "Zkratovat obvod (Klikni)",
+            "action": [
+              {
+                "type": "minigame_iframe",
+                "source": "assets/minigames/minihra_times.html",
+                "onWinAction": {
+                  "type": "goto",
+                  "target": "archiv_uvnitr"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "archiv_uvnitr": {
+        "bg": "assets/images/archive.png",
+        "sceneCaption": "Tajný archiv",
+        "characters": [
+          {
+            "visible": true,
+            "img": "assets/images/mc_batoh.webp",
+            "x": "15%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Neo"
+          },
+          {
+            "visible": true,
+            "img": "assets/images/classmate_shocked.png",
+            "x": "70%",
+            "y": "100%",
+            "anchor": "50% 100%",
+            "width": "18%",
+            "speakerId": "Tom"
+          }
+        ],
+        "dialogue": [
+          { "speaker": "Neo", "text": "Otevřeno! Tome?!" },
+          { "speaker": "Tom", "text": "Neo? Jsi... jsi skutečný?", "style": "whisper" },
+          { "speaker": "Tom", "text": "Odpojili mě. Viděl jsem kód. Viděl jsem všechno." },
+          { "speaker": "Neo", "text": "Musíme odsud vypadnout. Hned." }
+        ],
+        "onDialogueComplete": {
+          "type": "goto",
+          "target": "konec_kapitoly_cliffhanger"
+        }
+      },
+
+      "konec_kapitoly_cliffhanger": {
+        "bg": "assets/images/black.webp",
+        "sceneCaption": "KONEC ČÁSTI 1",
+        "text": "Neo našel Toma, ale systém o nich ví.\n\nÚtěk teprve začíná."
+      }
   }
 }
     
