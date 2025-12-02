@@ -1502,9 +1502,22 @@ case 'minigame_iframe':
         }
       // hide if previously picked
       if (obj.id && state.vars['picked_'+obj.id]) return;
-      const el = document.createElement('img');
+
+      const tagName = obj.img ? 'img' : 'div';
+      const el = document.createElement(tagName);
+      
+      // DŮLEŽITÉ: Přiřadíme ID, aby fungovalo tvé CSS z index.html
+      if (obj.id) el.id = obj.id;
+      
       el.dataset.objId = obj.id;
-      el.src = obj.img || '';
+      if (obj.img) el.src = obj.img;
+
+      // Vynucení absolutní průhlednosti a zrušení rámečků
+      el.style.border = 'none';
+      el.style.outline = 'none';
+      el.style.backgroundColor = 'transparent';
+      el.style.boxShadow = 'none';
+
       el.style.position = 'absolute';
       el.style.left = parseCoord(obj.x, false);
       el.style.top = parseCoord(obj.y, true);

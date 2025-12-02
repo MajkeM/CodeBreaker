@@ -311,7 +311,7 @@
           "x": "80%",
           "y": "100%",
           "anchor": "50% 100%",
-          "width": "18%",
+          "width": "25%",
           "speakerId": "Ucitel",
           "aliases": ["Ucitel"],
           "flip": true
@@ -411,7 +411,7 @@
             "action": [
               {
                 "type": "minigame_iframe",
-                "source": "assets/minigames/minihra_times.html",
+                "source": "assets/minigames/server.html",
                 "onWinAction": {
                     "type": "goto",
                     "target": "tajna_zprava"
@@ -454,7 +454,7 @@
           {
             "visible": true,
             "img": "assets/images/classmate_cafe.png",
-            "x": "70%",
+            "x": "80%",
             "y": "100%",
             "anchor": "50% 100%",
             "width": "20%",
