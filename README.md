@@ -35,6 +35,4 @@ Tato část je pro všechny větve stejná.
 
 ## 🚀 Jak spustit projekt
 
-1.  Naklonujte repozitář.
-2.  Otevřete složku ve VS Code.
-3.  # 🎮 CodeBreaker
+link na projekt??
