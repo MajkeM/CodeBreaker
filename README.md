@@ -17,7 +17,7 @@ Tato část je pro všechny větve stejná.
 *   **Rozcestí:** V momentě, kdy Neo s Tomem domluví, realita se štěpí na tři různé verze podle toho, kdo příběh píše.
 
 ### 2. Větve Příběhu
-*   **🟢 Větev 1 (Kuba):** `pribeh1-kuba.json`
+*   **🟢 Větev 1 (Kuba):** `pribeh1-kuba.json` - Simulace, Hacking
 *   **🔵 Větev 2 (Michael):** `???`
 *   **🔴 Větev 3 (Matyáš):** `???`
 
@@ -35,6 +35,4 @@ Tato část je pro všechny větve stejná.
 
 ## 🚀 Jak spustit projekt
 
-1.  Naklonujte repozitář.
-2.  Otevřete složku ve VS Code.
-3.  # 🎮 CodeBreaker
+link na projekt??
